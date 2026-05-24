@@ -1063,31 +1063,60 @@ async function getItemNames() {
   return itemNameCache
 }
 
-// Uses Electron's net module (Chromium network stack) — bypasses bot detection
-// that blocks plain Node.js https requests
-function fetchJSONBrowser(url) {
+// Fetch JSON via a hidden BrowserWindow — runs as a real Chromium browser,
+// handles Cloudflare/bot challenges, carries cookies, indistinguishable from a user.
+// We intercept the XHR/fetch response before the page renders, then close the window.
+function fetchJSONBrowser(apiUrl) {
   return new Promise((resolve, reject) => {
-    const origin = new URL(url).origin
-    const req = net.request({ url, redirect: 'follow' })
-    req.setHeader('User-Agent',       'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36')
-    req.setHeader('Referer',          origin + '/')
-    req.setHeader('Accept',           'application/json, text/plain, */*')
-    req.setHeader('Accept-Language',  'en-US,en;q=0.9')
-    req.setHeader('Cache-Control',    'no-cache')
-    let data = ''
-    req.on('response', (res) => {
-      console.log('[build] HTTP', res.statusCode, url)
-      if (res.statusCode !== 200) { reject(new Error(`HTTP ${res.statusCode}`)); return }
-      res.on('data', c => { data += c })
-      res.on('end',  () => {
-        try { resolve(JSON.parse(data)) }
-        catch { reject(new Error(`JSON parse error (got: ${data.slice(0, 80)})`)) }
-      })
-      res.on('error', reject)
+    let done = false
+    const finish = (fn) => { if (done) return; done = true; fn() }
+
+    const win = new BrowserWindow({
+      show: false,
+      webPreferences: { contextIsolation: true, nodeIntegration: false },
     })
-    req.on('error', reject)
-    setTimeout(() => { try { req.abort() } catch {} reject(new Error('timeout after 8s')) }, 8000)
-    req.end()
+
+    const timer = setTimeout(() => {
+      finish(() => { try { win.destroy() } catch {} reject(new Error('timeout after 15s')) })
+    }, 15000)
+
+    // Intercept the API response via webRequest — fires before the window renders anything
+    const filter = { urls: [apiUrl] }
+    win.webContents.session.webRequest.onCompleted(filter, (details) => {
+      // statusCode alone doesn't give us the body; use executeJavaScript to fetch instead
+    })
+
+    // Load a blank page then run fetch() inside the real browser context
+    win.loadURL('https://lolalytics.com/')
+    win.webContents.once('did-finish-load', () => {
+      win.webContents.executeJavaScript(`
+        fetch(${JSON.stringify(apiUrl)}, {
+          headers: { 'Accept': 'application/json, */*' }
+        })
+        .then(r => { if (!r.ok) throw new Error('HTTP ' + r.status); return r.text() })
+        .then(t => t)
+        .catch(e => '__ERR__' + e.message)
+      `).then(result => {
+        clearTimeout(timer)
+        finish(() => {
+          try { win.destroy() } catch {}
+          if (typeof result === 'string' && result.startsWith('__ERR__')) {
+            reject(new Error(result.slice(7)))
+          } else {
+            try { resolve(JSON.parse(result)) }
+            catch { reject(new Error(`JSON parse (got: ${String(result).slice(0, 80)})`)) }
+          }
+        })
+      }).catch(e => {
+        clearTimeout(timer)
+        finish(() => { try { win.destroy() } catch {}; reject(e) })
+      })
+    })
+
+    win.webContents.on('did-fail-load', (_, code, desc) => {
+      clearTimeout(timer)
+      finish(() => { try { win.destroy() } catch {}; reject(new Error(`load failed: ${desc}`)) })
+    })
   })
 }
 

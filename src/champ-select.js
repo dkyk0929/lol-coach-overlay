@@ -2,6 +2,12 @@ const POS_SHORT = {
   TOP: 'TOP', JUNGLE: 'JG', MIDDLE: 'MID', BOTTOM: 'BOT', UTILITY: 'SUP', '': '', UNKNOWN: ''
 }
 
+const SPELL_NAMES = {
+  1:  'Cleanse',  3:  'Exhaust', 4:  'Flash',    6:  'Ghost',
+  7:  'Heal',     11: 'Smite',   12: 'Teleport', 13: 'Clarity',
+  14: 'Ignite',   21: 'Barrier', 32: 'Mark',     39: 'Mark',
+}
+
 const PORTRAIT_BASE = 'https://raw.communitydragon.org/latest/plugins/rcp-be-lol-game-data/global/default/v1/champion-icons'
 
 let lastAIPromptKey = null
@@ -60,6 +66,16 @@ function playerRow(p, isAlly, myLocked) {
     ? `<span class="pos-pill pos-${posKey}">${posKey}</span>`
     : ''
 
+  const spellPill = (id) => {
+    const name = SPELL_NAMES[id]
+    if (!name) return ''
+    const cls = `spell-pill spell-${name.toLowerCase()}`
+    return `<span class="${cls}">${name}</span>`
+  }
+  const spells = (p.spell1 || p.spell2)
+    ? `<div class="spell-line">${spellPill(p.spell1)}${spellPill(p.spell2)}</div>`
+    : ''
+
   return `<div class="${rowClass}">
     ${portraitEl}
     <div class="player-info">
@@ -67,6 +83,7 @@ function playerRow(p, isAlly, myLocked) {
         <span class="${champClass}">${isMe ? '▶ ' : ''}${champText}</span>
         ${posPill}
       </div>
+      ${spells}
     </div>
   </div>`
 }

@@ -159,6 +159,37 @@ body {
 .pos-BOT { background: rgba(100,181,246,0.12); color: #64B5F6; border: 1px solid rgba(100,181,246,0.24); }
 .pos-SUP { background: rgba(255,213,79,0.12);  color: #FFD54F; border: 1px solid rgba(255,213,79,0.24); }
 
+/* ── Spell pills ── */
+.spell-line {
+  display: flex;
+  gap: 3px;
+  margin-top: 2px;
+}
+.enemy-row .spell-line { justify-content: flex-end; }
+.spell-pill {
+  font-size: 7px;
+  font-weight: 800;
+  letter-spacing: 0.3px;
+  padding: 1px 4px;
+  border-radius: 2px;
+  line-height: 13px;
+  border: 1px solid transparent;
+}
+/* Flash stands out — everyone cares about Flash */
+.spell-flash    { background: rgba(100,181,246,0.15); color: #90CAF9; border-color: rgba(100,181,246,0.3); }
+/* Actives */
+.spell-ignite   { background: rgba(255,100,60,0.14);  color: #FF8A65; border-color: rgba(255,100,60,0.28); }
+.spell-smite    { background: rgba(76,175,80,0.14);   color: #81C784; border-color: rgba(76,175,80,0.28); }
+.spell-teleport { background: rgba(206,147,216,0.12); color: #CE93D8; border-color: rgba(206,147,216,0.24); }
+/* Utility */
+.spell-heal     { background: rgba(255,213,79,0.12);  color: #FFD54F; border-color: rgba(255,213,79,0.24); }
+.spell-barrier  { background: rgba(255,213,79,0.12);  color: #FFD54F; border-color: rgba(255,213,79,0.24); }
+.spell-exhaust  { background: rgba(205,133,63,0.14);  color: #CD853F; border-color: rgba(205,133,63,0.28); }
+.spell-ghost    { background: rgba(200,155,60,0.12);  color: #C89B3C; border-color: rgba(200,155,60,0.24); }
+.spell-cleanse  { background: rgba(200,155,60,0.12);  color: #C89B3C; border-color: rgba(200,155,60,0.24); }
+.spell-clarity  { background: rgba(200,155,60,0.12);  color: #C89B3C; border-color: rgba(200,155,60,0.24); }
+.spell-mark     { background: rgba(200,155,60,0.12);  color: #C89B3C; border-color: rgba(200,155,60,0.24); }
+
 /* ── Build section ── */
 #build-section {
   border-top: 1px solid rgba(200,155,60,0.13);

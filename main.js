@@ -578,6 +578,8 @@ function processChampSelect(session) {
     champion:   resolve(p.championId),
     championId: p.championId,
     summonerId: p.summonerId,
+    spell1:     p.spell1Id ?? 0,
+    spell2:     p.spell2Id ?? 0,
     isMe:       p.cellId === myCell,
   }))
 
@@ -586,6 +588,8 @@ function processChampSelect(session) {
     champion:   resolve(p.championId),
     championId: p.championId,
     summonerId: p.summonerId,
+    spell1:     p.spell1Id ?? 0,
+    spell2:     p.spell2Id ?? 0,
   }))
 
   const bans = []

@@ -160,14 +160,16 @@ async function maybeRequestBuild({ myLocked, position }) {
   buildFetching = true
   try {
     const data = await window.cs.getBuild(myLocked, position)
-    buildData = data
-    if (data) {
+    if (data?.error) {
+      setBuildStatus(`Fetch failed: ${data.error}`)
+    } else if (data?.mostUsed) {
+      buildData = data
       renderBuild()
     } else {
       setBuildStatus('Build data unavailable')
     }
-  } catch {
-    setBuildStatus('Could not fetch build')
+  } catch (e) {
+    setBuildStatus(`Error: ${e.message}`)
   } finally {
     buildFetching = false
   }

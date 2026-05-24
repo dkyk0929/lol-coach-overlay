@@ -1069,18 +1069,24 @@ function fetchJSONBrowser(url) {
   return new Promise((resolve, reject) => {
     const origin = new URL(url).origin
     const req = net.request({ url, redirect: 'follow' })
+    req.setHeader('User-Agent',       'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36')
     req.setHeader('Referer',          origin + '/')
-    req.setHeader('Accept',           'application/json, */*')
+    req.setHeader('Accept',           'application/json, text/plain, */*')
     req.setHeader('Accept-Language',  'en-US,en;q=0.9')
+    req.setHeader('Cache-Control',    'no-cache')
     let data = ''
     req.on('response', (res) => {
+      console.log('[build] HTTP', res.statusCode, url)
       if (res.statusCode !== 200) { reject(new Error(`HTTP ${res.statusCode}`)); return }
       res.on('data', c => { data += c })
-      res.on('end',  () => { try { resolve(JSON.parse(data)) } catch { reject(new Error('JSON parse')) } })
+      res.on('end',  () => {
+        try { resolve(JSON.parse(data)) }
+        catch { reject(new Error(`JSON parse error (got: ${data.slice(0, 80)})`)) }
+      })
       res.on('error', reject)
     })
     req.on('error', reject)
-    setTimeout(() => { try { req.abort() } catch {} reject(new Error('timeout')) }, 8000)
+    setTimeout(() => { try { req.abort() } catch {} reject(new Error('timeout after 8s')) }, 8000)
     req.end()
   })
 }
@@ -1193,25 +1199,30 @@ ipcMain.handle('get-build', async (_, { champName, position }) => {
   const itemNames = await getItemNames()
 
   const urls = [
-    `https://lolalytics.com/api/champion/?champ=${lolName}&patch=&tier=platinum_plus&region=all&queue=420&lane=${lane}`,
     champId ? `https://a3.lolalytics.com/mega/?ep=champion&p=d&v=1&patch=&cid=${champId}&lane=${lane}&tier=platinum_plus&queue=420&region=all` : null,
+    `https://lolalytics.com/api/champion/?champ=${lolName}&patch=&tier=platinum_plus&region=all&queue=420&lane=${lane}`,
   ].filter(Boolean)
 
+  const errors = []
   for (const url of urls) {
     try {
       console.log('[build] fetching:', url)
       const raw   = await fetchJSONBrowser(url)
+      console.log('[build] keys:', Object.keys(raw).slice(0, 10).join(', '))
       const build = parseBuildResponse(raw, itemNames)
       if (build.mostUsed.runes || build.mostUsed.items) {
-        console.log('[build] parsed OK — keystone:', build.mostUsed.runes?.keystone)
+        console.log('[build] OK — keystone:', build.mostUsed.runes?.keystone)
         return build
       }
-      console.log('[build] parsed but empty, trying next URL')
+      console.log('[build] parsed but empty — raw keys were:', Object.keys(raw).join(', '))
+      errors.push('empty response')
     } catch (e) {
-      console.log('[build] fetch failed:', e.message)
+      console.log('[build] failed:', e.message)
+      errors.push(e.message)
     }
   }
-  return null
+  // Return a special object so the UI can show the actual error
+  return { error: errors.join(' / ') }
 })
 
 // ── LCU rune writer ───────────────────────────────────────────────────────────

@@ -339,23 +339,9 @@ body {
   text-overflow: ellipsis;
 }
 
-/* Apply button */
-#btn-apply-runes {
-  align-self: flex-end;
-  font-size: 9px;
-  font-weight: 800;
-  letter-spacing: 1px;
-  padding: 4px 16px;
-  border-radius: 3px;
-  border: 1px solid rgba(200,155,60,0.45);
-  background: rgba(200,155,60,0.13);
-  color: var(--gold);
-  cursor: pointer;
-  transition: all 0.15s;
-}
-#btn-apply-runes:hover  { background: rgba(200,155,60,0.25); border-color: var(--gold); }
-#btn-apply-runes.applied { color: var(--green); border-color: rgba(31,214,95,0.5); background: rgba(31,214,95,0.1); }
-#btn-apply-runes.error   { color: var(--red);   border-color: rgba(255,59,59,0.4);  background: rgba(255,59,59,0.08); }
+/* Toggle button feedback states */
+.toggle-btn.applied { color: var(--green); border-color: rgba(31,214,95,0.5); background: rgba(31,214,95,0.1); }
+.toggle-btn.error   { color: var(--red);   border-color: rgba(255,59,59,0.4);  background: rgba(255,59,59,0.08); }
 
 /* ── AI section ── */
 #ai-section {

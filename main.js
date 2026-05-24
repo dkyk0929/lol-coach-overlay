@@ -602,8 +602,10 @@ function processChampSelect(session) {
     }
   }
 
-  const myLocked = resolve(me.championId)
-  const state    = { position: pos, myTeam, theirTeam, bans, myLocked }
+  const myLocked     = resolve(me.championId)
+  const myChampionId = me.championId ?? 0
+  const mySummonerId = me.summonerId  ?? 0
+  const state        = { position: pos, myTeam, theirTeam, bans, myLocked, myChampionId, mySummonerId }
   const key      = JSON.stringify(state)
   if (key === lastCSKey) return
   lastCSKey = key
@@ -1261,6 +1263,77 @@ ipcMain.handle('apply-runes', async (_, { ids, primaryStyleId, subStyleId, name 
     console.error('[apply-runes]', e.message)
     return { ok: false, error: e.message }
   }
+})
+
+// ── LCU item set + rune combined apply ───────────────────────────────────────
+ipcMain.handle('apply-build', async (_, { runes, items, champName, champId, summonerId, mode }) => {
+  if (!lcuPort || !lcuPass) return { ok: false, error: 'League client not detected' }
+
+  const label = mode === 'mostUsed' ? 'Most Played' : 'Highest WR'
+  const errors = []
+
+  // ── 1. Apply rune page ─────────────────────────────────────────────────────
+  if (runes?.ids?.length) {
+    try {
+      const pages     = await fetchLCU('/lol-perks/v1/pages')
+      const coachPage = Array.isArray(pages) ? pages.find(p => p.name?.startsWith('Coach:')) : null
+      const lastPage  = Array.isArray(pages) && pages.length ? pages[pages.length - 1] : null
+      const toDelete  = coachPage ?? lastPage
+      if (toDelete?.id) await lcuMutation('DELETE', `/lol-perks/v1/pages/${toDelete.id}`, null)
+
+      await lcuMutation('POST', '/lol-perks/v1/pages', {
+        name:            `Coach: ${champName} (${label})`,
+        primaryStyleId:  runes.primaryStyleId,
+        subStyleId:      runes.subStyleId,
+        selectedPerkIds: runes.ids,
+        current: true,
+      })
+    } catch (e) {
+      console.error('[apply-build] runes:', e.message)
+      errors.push('Runes: ' + e.message)
+    }
+  }
+
+  // ── 2. Create item set ─────────────────────────────────────────────────────
+  if (items?.ids?.length && summonerId) {
+    try {
+      const sid      = String(summonerId)
+      let existing   = { itemSets: [], timestamp: 0 }
+      try {
+        existing = await fetchLCU(`/lol-item-sets/v1/item-sets/${sid}/sets`) ?? existing
+      } catch { /* first time — no sets yet */ }
+
+      // Remove any previous Coach item set for this champion
+      existing.itemSets = (existing.itemSets ?? []).filter(s =>
+        !(s.uid?.startsWith('coach-') && s.associatedChampions?.includes(champId))
+      )
+
+      existing.itemSets.push({
+        uid:                  `coach-${champId}-${Date.now()}`,
+        title:                `Coach: ${champName} (${label})`,
+        associatedChampions:  champId ? [champId] : [],
+        associatedMaps:       [11, 12],
+        blocks: [{
+          type:  'Core Build',
+          items: items.ids.map(id => ({ id: String(id), count: 1 })),
+        }],
+        map:  'any',
+        mode: 'any',
+        type: 'custom',
+        sortrank: 1,
+        isGlobalForMaps:      true,
+        isGlobalForChampions: false,
+      })
+      existing.timestamp = Date.now()
+
+      await lcuMutation('PUT', `/lol-item-sets/v1/item-sets/${sid}/sets`, existing)
+    } catch (e) {
+      console.error('[apply-build] items:', e.message)
+      errors.push('Items: ' + e.message)
+    }
+  }
+
+  return errors.length ? { ok: false, error: errors.join('; ') } : { ok: true }
 })
 
 // ── Session history ───────────────────────────────────────────────────────────

@@ -18,8 +18,10 @@ let buildData        = null   // { mostUsed, mostWon, totalGames, patch, ddVersi
 let buildMode        = 'mostUsed'  // 'mostUsed' | 'mostWon'
 let buildFetching    = false
 let lastBuildChamp   = null   // prevent re-fetching same champ
+let csState          = null   // latest full cs-update payload
 
 window.cs.onUpdate(async (state) => {
+  csState = state
   renderHeader(state)
   renderTeams(state)
   maybeRequestAI(state)
@@ -223,57 +225,57 @@ function renderBuild() {
     nameBox.textContent = ''
   }
 
-  // ── Apply button ──────────────────────────────────────────────────────────
-  const applyBtn = document.getElementById('btn-apply-runes')
-  applyBtn.textContent = '⚡ Apply Runes'
-  applyBtn.className   = ''
-  applyBtn.disabled    = false
 }
 
-// ── Build toggle buttons ──────────────────────────────────────────────────────
-document.getElementById('btn-most-used').addEventListener('click', () => {
-  buildMode = 'mostUsed'
-  document.getElementById('btn-most-used').classList.add('active')
-  document.getElementById('btn-most-won').classList.remove('active')
-  if (buildData) renderBuild()
-})
-
-document.getElementById('btn-most-won').addEventListener('click', () => {
-  buildMode = 'mostWon'
-  document.getElementById('btn-most-won').classList.add('active')
-  document.getElementById('btn-most-used').classList.remove('active')
-  if (buildData) renderBuild()
-})
-
-// ── Apply runes button ────────────────────────────────────────────────────────
-document.getElementById('btn-apply-runes').addEventListener('click', async () => {
+// ── Build toggle buttons (auto-apply on click) ────────────────────────────────
+async function applyCurrentBuild(mode, btn) {
   if (!buildData) return
-  const view = buildData[buildMode]
-  if (!view?.runes) return
+  const view = buildData[mode]
+  if (!view) return
 
-  const btn = document.getElementById('btn-apply-runes')
-  btn.textContent = 'Applying...'
+  btn.textContent = '⚡ Applying...'
   btn.disabled    = true
 
-  const champName = lastBuildChamp ?? 'Champion'
-  const label     = buildMode === 'mostUsed' ? 'Popular' : 'High WR'
-  const result    = await window.cs.applyRunes({
-    ids:            view.runes.ids,
-    primaryStyleId: view.runes.primaryStyleId,
-    subStyleId:     view.runes.subStyleId,
-    name:           `Coach: ${champName} (${label})`,
+  const result = await window.cs.applyBuild({
+    runes:       view.runes  ?? null,
+    items:       view.items  ?? null,
+    champName:   lastBuildChamp ?? 'Champion',
+    champId:     csState?.myChampionId ?? 0,
+    summonerId:  csState?.mySummonerId ?? 0,
+    mode,
   })
 
+  btn.disabled = false
   if (result?.ok) {
-    btn.textContent = '✓ Applied!'
+    btn.textContent = '✓ Applied'
     btn.classList.add('applied')
   } else {
-    btn.textContent = `✗ ${result?.error ?? 'Failed'}`
+    btn.textContent = '✗ Failed'
     btn.classList.add('error')
+    console.warn('[apply-build]', result?.error)
   }
-  btn.disabled = false
   setTimeout(() => {
-    btn.textContent = 'Apply Runes'
+    btn.textContent = btn.id === 'btn-most-used' ? 'Most Played' : 'Highest WR'
     btn.classList.remove('applied', 'error')
-  }, 3000)
+  }, 2500)
+}
+
+document.getElementById('btn-most-used').addEventListener('click', async function () {
+  buildMode = 'mostUsed'
+  this.classList.add('active')
+  document.getElementById('btn-most-won').classList.remove('active')
+  if (buildData) {
+    renderBuild()
+    await applyCurrentBuild('mostUsed', this)
+  }
+})
+
+document.getElementById('btn-most-won').addEventListener('click', async function () {
+  buildMode = 'mostWon'
+  this.classList.add('active')
+  document.getElementById('btn-most-used').classList.remove('active')
+  if (buildData) {
+    renderBuild()
+    await applyCurrentBuild('mostWon', this)
+  }
 })

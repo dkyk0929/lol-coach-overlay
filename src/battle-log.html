@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'">
+  <title>Battle Log</title>
+  <link rel="stylesheet" href="battle-log.css">
+</head>
+<body>
+<div id="app">
+
+  <div id="header">
+    <span id="header-label">⚔ BATTLE LOG</span>
+    <div id="header-actions">
+      <button id="btn-clear-all">🗑 CLEAR ALL</button>
+      <button id="btn-close">✕</button>
+    </div>
+  </div>
+
+  <div id="log-list">
+    <div id="empty-state">No games recorded yet.<br>Post-game analysis will be saved here automatically.</div>
+  </div>
+
+</div>
+<script src="battle-log.js"></script>
+</body>
+</html>

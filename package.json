@@ -1,0 +1,54 @@
+{
+  "name": "lol-coach-overlay",
+  "version": "1.2.4",
+  "description": "League of Legends real-time coaching overlay",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "dist": "electron-builder --win --x64"
+  },
+  "dependencies": {
+    "uiohook-napi": "^1.5.5"
+  },
+  "devDependencies": {
+    "electron": "^28.0.0",
+    "electron-builder": "^24.13.3"
+  },
+  "build": {
+    "appId": "com.lolcoach.overlay",
+    "productName": "LoL Coach Overlay",
+    "win": {
+      "target": [
+        "portable"
+      ],
+      "icon": "assets/icon.ico"
+    },
+    "nsis": {
+      "oneClick": true,
+      "perMachine": false,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true
+    },
+    "files": [
+      "main.js",
+      "preload.js",
+      "notif-preload.js",
+      "champ-select-preload.js",
+      "post-game-preload.js",
+      "battle-log-preload.js",
+      "recent-games-preload.js",
+      "ai-setup-preload.js",
+      "control-panel-preload.js",
+      "src/**",
+      "assets/**",
+      "node_modules/**"
+    ],
+    "asarUnpack": [
+      "node_modules/uiohook-napi/**"
+    ],
+    "compression": "maximum",
+    "directories": {
+      "output": "dist"
+    }
+  }
+}

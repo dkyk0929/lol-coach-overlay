@@ -1,0 +1,369 @@
+@import url('https://fonts.googleapis.com/css2?family=Cinzel:wght@600&display=swap');
+
+:root {
+  --gold:  #C89B3C;
+  --text:  #C8AA6E;
+  --muted: #7B8FA0;
+  --red:   #FF3B3B;
+  --green: #1FD65F;
+  --teal:  #0BC4E3;
+  --panel: rgba(2,8,16,0.88);
+
+  --active-opacity: 0.85;
+  --dimmed-opacity: 0.5;
+}
+
+@keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.35} }
+
+* { margin:0; padding:0; box-sizing:border-box; }
+
+body {
+  font-family: 'Cinzel', Georgia, serif;
+  background: transparent;
+  color: var(--text);
+  user-select: none;
+  overflow: hidden;
+  height: 100vh;
+}
+
+#app {
+  background: var(--panel);
+  border: 1px solid rgba(200,155,60,0.18);
+  border-top: 2px solid rgba(200,155,60,0.55);
+  border-radius: 4px;
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  overflow: hidden;
+  opacity: var(--active-opacity);
+  transition: opacity 0.3s;
+  backdrop-filter: blur(4px);
+  position: relative;
+  -webkit-app-region: drag;
+}
+
+#app.dimmed { opacity: var(--dimmed-opacity); }
+
+.hidden { display: none !important; }
+
+/* ── Right panel ── */
+#right-panel {
+  position: absolute;
+  top: 0; right: 0; bottom: 0;
+  width: 76px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: space-between;
+  z-index: 20;
+  -webkit-app-region: no-drag;
+  padding: 5px;
+  border-left: 1px solid rgba(200,155,60,0.1);
+}
+
+/* ── Win controls — top ── */
+#win-controls {
+  display: flex;
+  gap: 4px;
+  width: 100%;
+}
+
+#win-controls button {
+  flex: 1;
+  background: none;
+  border: 1px solid rgba(200,155,60,0.18);
+  color: rgba(200,170,110,0.4);
+  cursor: pointer;
+  font-size: 11px;
+  height: 17px;
+  border-radius: 2px;
+  font-family: system-ui, sans-serif;
+  transition: all 0.15s;
+  display: flex; align-items: center; justify-content: center;
+}
+#btn-minimize:hover { border-color: rgba(200,155,60,0.65); color: var(--gold); }
+#btn-close          { border-color: rgba(255,59,59,0.28); color: rgba(255,59,59,0.5); }
+#btn-close:hover    { border-color: var(--red); color: var(--red); background: rgba(255,59,59,0.08); }
+
+/* ── Panel separator ── */
+.panel-sep {
+  width: calc(100% - 6px);
+  height: 1px;
+  background: rgba(200,155,60,0.14);
+  flex-shrink: 0;
+}
+
+/* ── Left action strip — Log · AI · Coffee ── */
+#left-actions {
+  position: absolute;
+  top: 0; bottom: 0;
+  right: 76px;
+  width: 28px;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  justify-content: center;
+  gap: 4px;
+  z-index: 20;
+  -webkit-app-region: no-drag;
+  padding: 10px 3px;
+  border-left: 1px solid rgba(200,155,60,0.08);
+}
+
+#left-actions button {
+  background: none;
+  border: 1px solid rgba(200,155,60,0.14);
+  color: var(--muted);
+  border-radius: 3px;
+  cursor: pointer;
+  font-size: 12px;
+  height: 18px;
+  display: flex; align-items: center; justify-content: center;
+  transition: all 0.15s;
+  font-family: system-ui, sans-serif;
+}
+#left-actions button:hover { border-color: rgba(200,155,60,0.48); color: var(--text); }
+
+#btn-ai.active  { color: var(--teal); border-color: rgba(11,196,227,0.5); }
+#btn-coffee     { font-size: 11px; }
+#btn-coffee:hover { border-color: rgba(200,155,60,0.65); color: var(--gold); }
+
+/* ── Util grid — mute + opacity ── */
+#util-grid {
+  display: flex;
+  gap: 4px;
+  width: 100%;
+}
+
+#util-grid button {
+  flex: 1;
+  background: none;
+  border: 1px solid rgba(200,155,60,0.16);
+  color: var(--muted);
+  border-radius: 3px;
+  cursor: pointer;
+  font-size: 13px;
+  height: 22px;
+  display: flex; align-items: center; justify-content: center;
+  transition: all 0.15s;
+  font-family: system-ui, sans-serif;
+}
+#util-grid button:hover { border-color: rgba(200,155,60,0.5); color: var(--text); }
+
+#btn-tts.muted  { color: var(--red); border-color: rgba(255,59,59,0.5); background: rgba(255,59,59,0.07); }
+
+/* Opacity button shows percentage */
+#btn-opacity {
+  font-family: monospace;
+  font-size: 9px;
+  letter-spacing: 0.5px;
+  color: var(--text);
+  border-color: rgba(200,155,60,0.22);
+}
+#btn-opacity.open { border-color: var(--teal); color: var(--teal); }
+
+/* ── Opacity panel ── */
+#opacity-panel {
+  position: absolute;
+  top: 8px;
+  right: 108px;
+  background: rgba(2,8,16,0.97);
+  border: 1px solid rgba(200,155,60,0.35);
+  border-radius: 4px;
+  padding: 8px 12px;
+  z-index: 50;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  -webkit-app-region: no-drag;
+  backdrop-filter: blur(8px);
+  min-width: 200px;
+}
+#opacity-panel.hidden { display: none !important; }
+
+.opacity-label {
+  font-family: monospace;
+  font-size: 9px;
+  letter-spacing: 2px;
+  color: var(--gold);
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+#opacity-slider {
+  flex: 1;
+  -webkit-appearance: none;
+  height: 3px;
+  background: rgba(200,155,60,0.25);
+  border-radius: 2px;
+  outline: none;
+  cursor: pointer;
+}
+#opacity-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 13px; height: 13px;
+  border-radius: 50%;
+  background: var(--gold);
+  cursor: pointer;
+  border: none;
+  box-shadow: 0 0 4px rgba(200,155,60,0.6);
+}
+#opacity-slider::-webkit-slider-track {
+  background: rgba(200,155,60,0.15);
+  border-radius: 2px;
+}
+
+#opacity-value {
+  font-family: monospace;
+  font-size: 10px;
+  color: var(--text);
+  min-width: 32px;
+  text-align: right;
+  flex-shrink: 0;
+}
+
+/* ── Waiting screen ── */
+#waiting-screen {
+  flex: 1; display: flex; align-items: center;
+  gap: 12px; padding: 0 14px 0 16px;
+  padding-right: 112px;
+  min-height: 0;
+}
+
+.waiting-icon  { font-size: 14px; opacity: 0.3; flex-shrink: 0; }
+
+.waiting-brand {
+  display: flex; flex-direction: column; gap: 1px; flex-shrink: 0;
+}
+.waiting-title   { font-size: 12px; font-weight: 600; color: var(--gold); letter-spacing: 3px; }
+.waiting-version { font-family: monospace; font-size: 11px; color: var(--muted); letter-spacing: 1px; }
+
+.waiting-sub { font-family: monospace; font-size: 12px; color: var(--muted); }
+
+/* ── Game bar ── */
+#game-screen { flex: 1; display: flex; flex-direction: column; min-height: 0; }
+
+#game-bar {
+  height: 72px; flex-shrink: 0;
+  display: flex; align-items: stretch;
+  padding-right: 108px;
+}
+
+.bar-divider {
+  width: 1px; background: rgba(200,155,60,0.14);
+  flex-shrink: 0; margin: 8px 0;
+}
+
+/* ── JG zone — leftmost anchor in-game ── */
+#jg-zone {
+  width: 180px; flex-shrink: 0;
+  display: flex; align-items: center; gap: 6px;
+  padding: 0 14px; font-family: monospace; font-size: 12px;
+  transition: background 0.3s;
+}
+#jg-threat { font-size: 11px; color: var(--muted); transition: color 0.3s, text-shadow 0.3s; flex-shrink: 0; }
+#jg-last   { color: var(--muted); font-size: 11px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+#jg-zone.jg-dead    { background: rgba(31,214,95,0.04); }
+#jg-zone.jg-warning { background: rgba(200,155,60,0.05); }
+#jg-zone.jg-danger  { background: rgba(255,59,59,0.07); animation: pulse 1.5s ease-in-out infinite; }
+
+#jg-zone.jg-dead    #jg-threat { color: var(--green); text-shadow: 0 0 6px rgba(31,214,95,0.7); }
+#jg-zone.jg-warning #jg-threat { color: var(--gold);  text-shadow: 0 0 5px rgba(200,155,60,0.7); }
+#jg-zone.jg-danger  #jg-threat { color: var(--red);   text-shadow: 0 0 7px rgba(255,59,59,0.9); }
+
+/* ── CS + Gold zone ── */
+#cs-zone {
+  width: 80px; flex-shrink: 0;
+  display: flex; flex-direction: column;
+  align-items: center; justify-content: center; gap: 2px;
+}
+#cs-delta {
+  font-family: monospace; font-size: 22px; font-weight: 700;
+  color: var(--text); line-height: 1;
+}
+#gold-diff {
+  font-family: monospace; font-size: 11px; color: var(--muted); line-height: 1;
+}
+
+/* ── Drake zone ── */
+#drake-zone {
+  width: 112px; flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center;
+  gap: 3px; font-family: monospace; font-size: 12px;
+}
+#drake-icon   { font-size: 13px; opacity: 0.6; }
+#ally-drakes  { color: var(--gold); font-weight: 700; font-size: 15px; min-width: 10px; text-align: center; }
+.drake-sep    { color: var(--muted); font-size: 11px; }
+#enemy-drakes { color: var(--muted); font-size: 15px; min-width: 10px; text-align: center; }
+
+#drake-zone.soul-warning #enemy-drakes { color: var(--red); text-shadow: 0 0 6px rgba(255,59,59,0.7); }
+#drake-zone.soul-warning #drake-icon   { opacity: 1; }
+
+/* ── Coaching zone ── */
+#coaching-zone {
+  flex: 1; display: flex; align-items: center;
+  padding: 6px 14px; min-width: 0;
+}
+#focus-text {
+  font-family: monospace; font-size: 12px; font-weight: 600;
+  color: var(--gold); line-height: 1.45;
+  overflow: hidden; display: -webkit-box;
+  -webkit-line-clamp: 3; -webkit-box-orient: vertical;
+}
+
+/* ── Wave trend ── */
+#wave-trend { font-family: monospace; font-size: 13px; line-height: 1; }
+#wave-trend.wave-up   { color: var(--green); }
+#wave-trend.wave-down { color: var(--red); }
+
+/* ── Back button (post-game) ── */
+#back-btn {
+  flex-shrink: 0;
+  background: none;
+  border: 1px solid rgba(200,155,60,0.2);
+  color: var(--muted);
+  font-size: 13px;
+  padding: 0 8px;
+  margin-right: 4px;
+  cursor: pointer;
+  border-radius: 3px;
+  height: 22px;
+  transition: all 0.15s;
+  font-family: system-ui;
+  display: flex; align-items: center;
+  -webkit-app-region: no-drag;
+}
+#back-btn:hover { border-color: rgba(200,155,60,0.6); color: var(--gold); }
+
+/* ── Objective countdown ── */
+#obj-countdown {
+  font-family: monospace; font-size: 11px;
+  color: var(--muted); margin-left: 4px;
+}
+#obj-countdown.urgent { color: var(--gold); text-shadow: 0 0 4px rgba(200,155,60,0.6); }
+
+/* ── Situational context badge ── */
+#allin-badge {
+  flex-shrink: 0; font-family: monospace; font-size: 11px; font-weight: 600;
+  color: var(--gold); padding: 0 10px;
+  border-left: 1px solid rgba(200,155,60,0.2);
+  display: flex; align-items: center;
+  opacity: 0.9; cursor: default; white-space: nowrap;
+}
+
+/* ── Settings bar (legacy, keep for compat) ── */
+#settings-bar {
+  position: absolute; inset: 0;
+  display: flex; align-items: center; gap: 6px; padding: 0 10px;
+  background: rgba(2,8,16,0.96); border-top: 2px solid var(--muted);
+  z-index: 30; -webkit-app-region: no-drag;
+}
+.s-label { font-family: monospace; font-size: 9px; color: var(--muted); letter-spacing: 1px; flex-shrink: 0; }
+.s-toggle {
+  background: none; border: 1px solid rgba(74,90,106,0.4);
+  border-radius: 3px; color: var(--muted); font-family: monospace;
+  font-size: 10px; padding: 3px 7px; cursor: pointer; transition: all 0.15s;
+}
+.s-toggle.muted { background: rgba(255,59,59,0.1); border-color: rgba(255,59,59,0.5); color: var(--red); text-decoration: line-through; }

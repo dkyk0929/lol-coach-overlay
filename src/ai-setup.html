@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self';">
+  <title>AI Setup</title>
+  <link rel="stylesheet" href="ai-setup.css">
+</head>
+<body>
+<div id="app">
+
+  <div id="header">
+    <span id="title">✦ AI COACHING</span>
+    <button id="close-btn">✕</button>
+  </div>
+
+  <div id="content">
+
+    <!-- Status -->
+    <div id="status-bar">
+      <span id="status-dot">●</span>
+      <span id="status-text">Checking...</span>
+    </div>
+
+    <!-- Feature comparison -->
+    <div id="features">
+      <div class="feature-col">
+        <div class="col-header free">ALWAYS FREE</div>
+        <div class="feature-row"><span class="check free">✓</span> Objective timers (Drake · Baron · Herald)</div>
+        <div class="feature-row"><span class="check free">✓</span> Jungler tracking & missing laner alerts</div>
+        <div class="feature-row"><span class="check free">✓</span> CS delta & gold diff tracking</div>
+        <div class="feature-row"><span class="check free">✓</span> Power spike alerts (Level 6 / 11 / 16)</div>
+        <div class="feature-row"><span class="check free">✓</span> Push window & enemy death alerts</div>
+        <div class="feature-row"><span class="check free">✓</span> Full game history & battle log</div>
+      </div>
+
+      <div class="col-sep"></div>
+
+      <div class="feature-col">
+        <div class="col-header ai">WITH CLAUDE API KEY</div>
+        <div class="feature-row"><span class="check ai">✦</span> Game plan generated at match start</div>
+        <div class="feature-row"><span class="check ai">✦</span> Live coaching tips every 45 seconds</div>
+        <div class="feature-row"><span class="check ai">✦</span> Champion picks during champ select</div>
+        <div class="feature-row"><span class="check ai">✦</span> Post-game performance breakdown</div>
+        <div class="feature-row"><span class="check ai">✦</span> High-elo enemy warnings (Diamond+)</div>
+        <div class="feature-row"><span class="check ai">✦</span> Death coaching & respawn plan</div>
+      </div>
+    </div>
+
+    <!-- How to get key -->
+    <div id="how-to">
+      <div id="how-to-title">HOW TO GET YOUR FREE API KEY</div>
+      <div id="steps">
+        <div class="step"><span class="step-n">1</span>Go to <span class="link">console.anthropic.com</span> and create a free account</div>
+        <div class="step"><span class="step-n">2</span>Click <strong>API Keys</strong> in the left sidebar → <strong>Create Key</strong></div>
+        <div class="step"><span class="step-n">3</span>Copy your key — it starts with <span class="mono">sk-ant-</span></div>
+        <div class="step"><span class="step-n">4</span>Paste it below and click SAVE</div>
+      </div>
+    </div>
+
+    <!-- Key input -->
+    <div id="key-section">
+      <div id="key-label"></div>
+      <div id="key-row">
+        <input id="key-input" type="password" placeholder="Paste sk-ant-... key here" autocomplete="off" spellcheck="false">
+        <button id="save-btn">SAVE</button>
+      </div>
+      <div id="save-feedback" class="hidden"></div>
+    </div>
+
+  </div>
+</div>
+<script src="ai-setup.js"></script>
+</body>
+</html>

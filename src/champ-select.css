@@ -1,0 +1,176 @@
+:root {
+  --gold:  #C89B3C;
+  --text:  #C8AA6E;
+  --muted: #4A5A6A;
+  --green: #1FD65F;
+  --teal:  #0BC4E3;
+  --red:   #FF3B3B;
+  --panel: rgba(2,8,16,0.93);
+}
+
+* { margin:0; padding:0; box-sizing:border-box; }
+
+body {
+  font-family: 'Segoe UI', system-ui, monospace;
+  background: transparent;
+  color: var(--text);
+  user-select: none;
+  overflow: hidden;
+  height: 100vh;
+}
+
+#app {
+  background: var(--panel);
+  border: 1px solid rgba(200,155,60,0.22);
+  border-top: 2px solid rgba(200,155,60,0.7);
+  border-radius: 4px;
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+  backdrop-filter: blur(10px);
+}
+
+/* ── Header ── */
+#header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 6px 14px 5px;
+  border-bottom: 1px solid rgba(200,155,60,0.10);
+  flex-shrink: 0;
+  -webkit-app-region: drag;
+  cursor: grab;
+}
+#role-label {
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--gold);
+  letter-spacing: 2px;
+  text-transform: uppercase;
+}
+#bans-label {
+  font-size: 9px;
+  color: var(--muted);
+  max-width: 380px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ── Teams layout ── */
+#teams, #ai-section { -webkit-app-region: no-drag; }
+#teams {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+  padding: 7px 12px 5px;
+  gap: 8px;
+}
+.team-col { flex: 1; display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.team-header {
+  font-size: 7px;
+  font-weight: 700;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  margin-bottom: 4px;
+}
+#ally-team  .team-header { color: rgba(31,214,95,0.45); }
+#enemy-team .team-header { color: rgba(255,80,80,0.45); text-align: right; }
+
+#divider { width: 1px; background: rgba(200,155,60,0.10); margin: 2px 0; flex-shrink: 0; }
+
+/* ── Player rows ── */
+.player-row {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 1px 0;
+}
+.enemy-row { flex-direction: row-reverse; }
+
+/* Portrait */
+.portrait {
+  width: 34px;
+  height: 34px;
+  border-radius: 4px;
+  border: 1px solid rgba(200,155,60,0.12);
+  object-fit: cover;
+  flex-shrink: 0;
+  background: rgba(8,18,30,0.8);
+  image-rendering: -webkit-optimize-contrast;
+  transition: border-color 0.2s;
+}
+.portrait-placeholder {
+  width: 34px;
+  height: 34px;
+  border-radius: 4px;
+  border: 1px solid rgba(200,155,60,0.08);
+  flex-shrink: 0;
+  background: rgba(8,18,30,0.5);
+}
+.portrait.me     { border-color: #C89B3C; box-shadow: 0 0 7px rgba(200,155,60,0.3); }
+.portrait.locked { border-color: rgba(31,214,95,0.45); }
+
+/* Info block */
+.player-info {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.enemy-row .player-info { align-items: flex-end; }
+
+/* Name line */
+.name-line {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  min-width: 0;
+}
+.enemy-row .name-line { flex-direction: row-reverse; }
+
+.champ-name {
+  font-size: 11px;
+  font-weight: 700;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  letter-spacing: 0.2px;
+  color: var(--text);
+}
+.champ-name.me     { color: var(--gold); }
+.champ-name.locked { color: var(--green); }
+.champ-name.empty  { color: var(--muted); font-style: italic; font-weight: 400; font-size: 10px; }
+
+/* Position pills */
+.pos-pill {
+  font-size: 7px;
+  font-weight: 800;
+  letter-spacing: 0.5px;
+  padding: 1px 5px;
+  border-radius: 2px;
+  flex-shrink: 0;
+  line-height: 13px;
+}
+.pos-TOP { background: rgba(205,133,63,0.14); color: #CD853F; border: 1px solid rgba(205,133,63,0.28); }
+.pos-JG  { background: rgba(76,175,80,0.14);  color: #66BB6A; border: 1px solid rgba(76,175,80,0.28); }
+.pos-MID { background: rgba(206,147,216,0.12); color: #CE93D8; border: 1px solid rgba(206,147,216,0.24); }
+.pos-BOT { background: rgba(100,181,246,0.12); color: #64B5F6; border: 1px solid rgba(100,181,246,0.24); }
+.pos-SUP { background: rgba(255,213,79,0.12);  color: #FFD54F; border: 1px solid rgba(255,213,79,0.24); }
+
+/* ── AI section ── */
+#ai-section {
+  border-top: 1px solid rgba(200,155,60,0.09);
+  padding: 5px 14px 7px;
+  flex-shrink: 0;
+}
+#ai-content {
+  font-size: 10px;
+  color: var(--teal);
+  line-height: 1.5;
+  white-space: pre-line;
+}
+#ai-content.waiting   { color: var(--muted); font-style: italic; }
+#ai-content.loading   { color: var(--muted); }
+#ai-content.locked-in { color: var(--green); }

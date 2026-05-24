@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self';">
+  <title>LoL Coach Controls</title>
+  <link rel="stylesheet" href="control-panel.css">
+</head>
+<body>
+<div id="app">
+
+  <div id="header">
+    <span id="title">✦ LOL COACH</span>
+    <span id="hint">CTRL+SHIFT+C TO CLOSE</span>
+    <button id="close-btn" title="Close panel">✕</button>
+  </div>
+
+  <div id="buttons">
+
+    <div class="btn-group">
+      <button id="tts-btn" class="btn-action">🔊 VOICE ON</button>
+    </div>
+
+    <div class="btn-group">
+      <button id="log-btn"    class="btn-secondary">📋 LOG</button>
+      <button id="ai-btn"     class="btn-secondary">✦ AI</button>
+      <button id="coffee-btn" class="btn-secondary">☕</button>
+    </div>
+
+
+  </div>
+
+</div>
+<script src="control-panel.js"></script>
+</body>
+</html>

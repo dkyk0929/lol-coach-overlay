@@ -1,0 +1,39 @@
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+body {
+  background: transparent;
+  overflow: hidden;
+  height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: 'Cinzel', Georgia, serif;
+}
+
+#notif {
+  background: rgba(2, 8, 16, 0.90);
+  border: 1px solid rgba(200,155,60,0.25);
+  border-top: 3px solid #C89B3C;
+  border-radius: 4px;
+  padding: 16px 28px;
+  text-align: center;
+  width: 100%;
+  backdrop-filter: blur(6px);
+  opacity: 0;
+  transform: translateY(-12px);
+  transition: opacity 0.2s ease, transform 0.2s ease;
+}
+
+#notif.show {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+#notif-msg {
+  font-family: monospace;
+  font-size: 13px;
+  font-weight: 600;
+  color: #C8AA6E;
+  letter-spacing: 0.5px;
+  line-height: 1.55;
+}

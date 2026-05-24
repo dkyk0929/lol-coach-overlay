@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'">
+  <title>Post Game</title>
+  <link rel="stylesheet" href="post-game.css">
+</head>
+<body>
+<div id="app">
+
+  <div id="header">
+    <span id="result-badge">—</span>
+    <span id="champ-label"></span>
+    <span id="stats-label"></span>
+    <button id="btn-close">✕</button>
+  </div>
+
+  <div id="analysis">
+    <div id="analysis-text">Analyzing your game...</div>
+  </div>
+
+  <div id="key-events">
+    <span id="events-label"></span>
+  </div>
+
+</div>
+<script src="post-game.js"></script>
+</body>
+</html>

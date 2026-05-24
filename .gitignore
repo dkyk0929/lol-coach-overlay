@@ -1,0 +1,6 @@
+node_modules/
+dist/
+package-lock.json
+build-output.txt
+build.log
+make-icon.js

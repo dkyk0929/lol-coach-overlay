@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data:">
+  <title>LoL Coach</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<div id="app">
+
+  <!-- ── Left action strip — Log · AI · Coffee ── -->
+  <div id="left-actions">
+    <button id="btn-log"    title="Battle Log">📋</button>
+    <button id="btn-ai"     title="AI Coaching">✦</button>
+    <button id="btn-coffee" title="Buy me a coffee ☕">☕</button>
+  </div>
+
+  <!-- ── Right panel — window controls + util ── -->
+  <div id="right-panel">
+    <div id="win-controls">
+      <button id="btn-minimize" title="Minimize">−</button>
+      <button id="btn-close"    title="Quit LoL Coach">✕</button>
+    </div>
+    <div class="panel-sep"></div>
+    <div id="util-grid">
+      <button id="btn-tts"     title="Mute / Unmute voice">🔊</button>
+      <button id="btn-opacity" title="Opacity control">85%</button>
+    </div>
+  </div>
+
+  <!-- ── Opacity panel ── -->
+  <div id="opacity-panel" class="hidden">
+    <span class="opacity-label">OPACITY</span>
+    <input type="range" id="opacity-slider" min="20" max="100" value="85" step="1">
+    <span id="opacity-value">85%</span>
+  </div>
+
+  <!-- ── Waiting state ── -->
+  <div id="waiting-screen">
+    <span class="waiting-icon">⚔</span>
+    <div class="waiting-brand">
+      <span class="waiting-title">LOL COACH</span>
+      <span class="waiting-version"></span>
+    </div>
+    <span class="waiting-sub">Waiting for a match · Borderless Windowed</span>
+  </div>
+
+  <!-- ── Game HUD bar ── -->
+  <div id="game-screen" class="hidden">
+    <div id="game-bar">
+
+      <!-- JG zone — leftmost anchor in-game -->
+      <div id="jg-zone">
+        <span id="jg-threat">●</span>
+        <span id="jg-last">detecting...</span>
+      </div>
+
+      <div class="bar-divider"></div>
+
+      <!-- CS + Gold zone -->
+      <div id="cs-zone">
+        <span id="cs-delta">—</span>
+        <span id="wave-trend"></span>
+        <span id="gold-diff"></span>
+      </div>
+
+      <div class="bar-divider"></div>
+
+      <!-- Drake zone -->
+      <div id="drake-zone">
+        <span id="drake-icon">🐉</span>
+        <span id="ally-drakes">0</span>
+        <span class="drake-sep">·</span>
+        <span id="enemy-drakes">0</span>
+        <span id="obj-countdown"></span>
+      </div>
+
+      <div class="bar-divider"></div>
+
+      <!-- Coaching zone -->
+      <div id="coaching-zone">
+        <div id="focus-text">Warming up...</div>
+      </div>
+
+      <!-- Situational context badge -->
+      <div id="allin-badge" class="hidden"></div>
+
+      <!-- Back to lobby (shown after game ends) -->
+      <button id="back-btn" class="hidden" title="Back to waiting screen">←</button>
+
+    </div>
+  </div>
+
+</div>
+
+<script src="data/timeline.js"></script>
+<script src="data/eventHandlers.js"></script>
+<script src="renderer.js"></script>
+</body>
+</html>

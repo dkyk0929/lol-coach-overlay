@@ -1,0 +1,180 @@
+:root {
+  --gold:  #C89B3C;
+  --text:  #C8AA6E;
+  --muted: #4A5A6A;
+  --green: #1FD65F;
+  --teal:  #0BC4E3;
+  --red:   #FF3B3B;
+  --panel: rgba(2,8,16,0.94);
+}
+
+* { margin:0; padding:0; box-sizing:border-box; }
+
+body {
+  font-family: 'Segoe UI', system-ui, monospace;
+  background: transparent;
+  color: var(--text);
+  user-select: none;
+  overflow: hidden;
+  height: 100vh;
+}
+
+#app {
+  background: var(--panel);
+  border: 1px solid rgba(200,155,60,0.22);
+  border-top: 2px solid rgba(200,155,60,0.75);
+  border-radius: 4px;
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+  backdrop-filter: blur(10px);
+}
+
+/* ── Header ── */
+#header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 6px 14px 5px;
+  border-bottom: 1px solid rgba(200,155,60,0.10);
+  flex-shrink: 0;
+  -webkit-app-region: drag;
+  cursor: grab;
+}
+#header-label {
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--gold);
+  letter-spacing: 2px;
+}
+#btn-close {
+  background: none;
+  border: 1px solid transparent;
+  color: var(--muted);
+  font-size: 12px;
+  padding: 1px 7px;
+  cursor: pointer;
+  border-radius: 3px;
+  font-family: system-ui;
+  flex-shrink: 0;
+  transition: all 0.15s;
+  -webkit-app-region: no-drag;
+}
+#btn-close:hover { border-color: rgba(255,59,59,0.5); color: var(--red); }
+
+/* ── Teams ── */
+#teams {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+  padding: 8px 12px 8px;
+  gap: 8px;
+}
+.team-col { flex: 1; display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.team-header {
+  font-size: 7px;
+  font-weight: 700;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  margin-bottom: 5px;
+}
+.ally-header  { color: rgba(31,214,95,0.5); }
+.enemy-header { color: rgba(255,80,80,0.5); text-align: right; }
+
+#divider { width: 1px; background: rgba(200,155,60,0.10); margin: 0 2px; flex-shrink: 0; }
+
+/* ── Player rows ── */
+.player-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 2px 0;
+}
+.enemy-row { flex-direction: row-reverse; }
+
+/* Portrait */
+.portrait {
+  width: 38px;
+  height: 38px;
+  border-radius: 4px;
+  border: 1px solid rgba(200,155,60,0.15);
+  object-fit: cover;
+  flex-shrink: 0;
+  background: rgba(8,18,30,0.8);
+}
+.portrait-placeholder {
+  width: 38px;
+  height: 38px;
+  border-radius: 4px;
+  border: 1px solid rgba(200,155,60,0.08);
+  flex-shrink: 0;
+  background: rgba(8,18,30,0.5);
+}
+.portrait.me     { border-color: #C89B3C; box-shadow: 0 0 8px rgba(200,155,60,0.3); }
+.portrait.enemy  { border-color: rgba(255,60,60,0.2); }
+
+/* Info block */
+.player-info {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.enemy-row .player-info { align-items: flex-end; }
+
+/* Name line */
+.name-line {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  min-width: 0;
+}
+.enemy-row .name-line { flex-direction: row-reverse; }
+
+.champ-name {
+  font-size: 11px;
+  font-weight: 700;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: var(--text);
+}
+.champ-name.me { color: var(--gold); }
+
+/* Position pill */
+.pos-pill {
+  font-size: 7px;
+  font-weight: 800;
+  letter-spacing: 0.5px;
+  padding: 1px 5px;
+  border-radius: 2px;
+  flex-shrink: 0;
+  line-height: 13px;
+}
+.pos-TOP { background: rgba(205,133,63,0.14); color: #CD853F; border: 1px solid rgba(205,133,63,0.28); }
+.pos-JG  { background: rgba(76,175,80,0.14);  color: #66BB6A; border: 1px solid rgba(76,175,80,0.28); }
+.pos-MID { background: rgba(206,147,216,0.12); color: #CE93D8; border: 1px solid rgba(206,147,216,0.24); }
+.pos-BOT { background: rgba(100,181,246,0.12); color: #64B5F6; border: 1px solid rgba(100,181,246,0.24); }
+.pos-SUP { background: rgba(255,213,79,0.12);  color: #FFD54F; border: 1px solid rgba(255,213,79,0.24); }
+
+/* Stats line */
+.stat-line {
+  font-size: 9px;
+  color: var(--muted);
+  white-space: nowrap;
+  font-family: monospace;
+}
+.stat-line.loading { color: rgba(74,90,106,0.45); letter-spacing: 2px; }
+
+/* Tier colors */
+.tier-challenger,
+.tier-grandmaster,
+.tier-master  { color: #FF7043; font-weight: 700; }
+.tier-diamond { color: #82B1FF; }
+.tier-emerald { color: #69F0AE; }
+.tier-platinum{ color: #4DD0E1; }
+.tier-gold    { color: #C89B3C; }
+.tier-silver  { color: #90A4AE; }
+.tier-bronze  { color: #A1887F; }
+.tier-iron    { color: #546E7A; }

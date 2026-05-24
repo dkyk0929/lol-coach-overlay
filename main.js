@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain, screen, globalShortcut, shell, Tray, Menu, nativeImage } = require('electron')
+const { app, BrowserWindow, ipcMain, screen, globalShortcut, shell, Tray, Menu, nativeImage, net } = require('electron')
 const { uIOhook, UiohookKey } = require('uiohook-napi')
 
 app.commandLine.appendSwitch('autoplay-policy', 'no-user-gesture-required')
@@ -495,7 +495,7 @@ function createChampSelectWindow() {
   if (champSelectWindow && !champSelectWindow.isDestroyed()) return
   const cfg = loadConfig()
   const { width: sw } = screen.getPrimaryDisplay().workAreaSize
-  const w = 760, h = 310
+  const w = 760, h = 360
   champSelectWindow = new BrowserWindow({
     width: w, height: h,
     x: cfg.csBarX ?? Math.floor((sw - w) / 2),
@@ -1051,30 +1051,25 @@ async function getItemNames() {
   return itemNameCache
 }
 
+// Uses Electron's net module (Chromium network stack) — bypasses bot detection
+// that blocks plain Node.js https requests
 function fetchJSONBrowser(url) {
   return new Promise((resolve, reject) => {
-    const u = new URL(url)
-    const req = https.get({
-      hostname: u.hostname,
-      path: u.pathname + u.search,
-      headers: {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
-        'Referer': `https://${u.hostname}/`,
-        'Accept': 'application/json, */*',
-        'Accept-Language': 'en-US,en;q=0.9',
-      },
-      rejectUnauthorized: true,
-      timeout: 7000,
-    }, (res) => {
-      let data = ''
-      res.on('data', c => data += c)
-      res.on('end', () => {
-        if (res.statusCode !== 200) { reject(new Error(`HTTP ${res.statusCode}`)); return }
-        try { resolve(JSON.parse(data)) } catch { reject(new Error('JSON parse')) }
-      })
+    const origin = new URL(url).origin
+    const req = net.request({ url, redirect: 'follow' })
+    req.setHeader('Referer',          origin + '/')
+    req.setHeader('Accept',           'application/json, */*')
+    req.setHeader('Accept-Language',  'en-US,en;q=0.9')
+    let data = ''
+    req.on('response', (res) => {
+      if (res.statusCode !== 200) { reject(new Error(`HTTP ${res.statusCode}`)); return }
+      res.on('data', c => { data += c })
+      res.on('end',  () => { try { resolve(JSON.parse(data)) } catch { reject(new Error('JSON parse')) } })
+      res.on('error', reject)
     })
     req.on('error', reject)
-    req.on('timeout', () => { req.destroy(); reject(new Error('timeout')) })
+    setTimeout(() => { try { req.abort() } catch {} reject(new Error('timeout')) }, 8000)
+    req.end()
   })
 }
 
@@ -1090,13 +1085,35 @@ function getStyleId(perkId) {
 }
 
 const KEYSTONE_NAMES = {
-  8005: 'Press the Attack', 8008: 'Lethal Tempo',   8021: 'Fleet Footwork', 8010: 'Conqueror',
-  8112: 'Electrocute',      8124: 'Predator',        8128: 'Dark Harvest',   9923: 'Hail of Blades',
-  8214: 'Arcane Comet',     8229: 'Phase Rush',      8230: 'Summon Aery',
+  8005: 'Press the Attack', 8008: 'Lethal Tempo',      8021: 'Fleet Footwork', 8010: 'Conqueror',
+  8112: 'Electrocute',      8124: 'Predator',           8128: 'Dark Harvest',   9923: 'Hail of Blades',
+  8214: 'Arcane Comet',     8229: 'Phase Rush',         8230: 'Summon Aery',
   8351: 'Glacial Augment',  8360: 'Unsealed Spellbook', 8358: 'First Strike',
-  8437: 'Grasp of the Undying', 8439: 'Aftershock',  8465: 'Guardian',
+  8437: 'Grasp of the Undying', 8439: 'Aftershock',    8465: 'Guardian',
 }
 const TREE_NAMES = { 8000: 'Precision', 8100: 'Domination', 8200: 'Sorcery', 8300: 'Inspiration', 8400: 'Resolve' }
+
+// DDragon perk image paths — base: https://ddragon.leagueoflegends.com/cdn/img/perk-images/Styles/
+const KEYSTONE_ICONS = {
+  8005: 'Precision/PressTheAttack/PressTheAttack.png',
+  8008: 'Precision/LethalTempo/LethalTempoTemp.png',
+  8021: 'Precision/FleetFootwork/FleetFootwork.png',
+  8010: 'Precision/Conqueror/Conqueror.png',
+  8112: 'Domination/Electrocute/Electrocute.png',
+  8124: 'Domination/Predator/Predator.png',
+  8128: 'Domination/DarkHarvest/DarkHarvest.png',
+  9923: 'Domination/HailOfBlades/HailOfBlades.png',
+  8214: 'Sorcery/ArcaneComet/ArcaneComet.png',
+  8229: 'Sorcery/PhaseRush/PhaseRush.png',
+  8230: 'Sorcery/SummonAery/SummonAery.png',
+  8351: 'Inspiration/GlacialAugment/GlacialAugment.png',
+  8360: 'Inspiration/UnsealedSpellbook/UnsealedSpellbook.png',
+  8358: 'Inspiration/FirstStrike/FirstStrike.png',
+  8437: 'Resolve/GraspOfTheUndying/GraspOfTheUndying.png',
+  8439: 'Resolve/VeteranAftershock/VeteranAftershock.png',
+  8465: 'Resolve/Guardian/Guardian.png',
+}
+const PERK_IMG_BASE = 'https://ddragon.leagueoflegends.com/cdn/img/perk-images/Styles/'
 
 function parseBuildResponse(raw, itemNames) {
   console.log('[build] top-level keys:', Object.keys(raw).join(', '))
@@ -1130,15 +1147,17 @@ function parseBuildResponse(raw, itemNames) {
     if (!r) return null
     const primary   = getStyleId(r.ids[0])
     const secondary = getStyleId(r.ids[4])
+    const iconPath  = KEYSTONE_ICONS[r.ids[0]]
     return {
-      ids:           r.ids,
+      ids:            r.ids,
       primaryStyleId: primary,
-      subStyleId:    secondary,
-      keystone:      KEYSTONE_NAMES[r.ids[0]] ?? `Perk ${r.ids[0]}`,
-      primaryTree:   TREE_NAMES[primary]   ?? 'Unknown',
-      secondaryTree: TREE_NAMES[secondary] ?? 'Unknown',
-      pickRate:      r.n,
-      winRate:       Math.round(r.wr * 10) / 10,
+      subStyleId:     secondary,
+      keystone:       KEYSTONE_NAMES[r.ids[0]] ?? `Perk ${r.ids[0]}`,
+      keystoneIcon:   iconPath ? PERK_IMG_BASE + iconPath : null,
+      primaryTree:    TREE_NAMES[primary]   ?? 'Unknown',
+      secondaryTree:  TREE_NAMES[secondary] ?? 'Unknown',
+      pickRate:       r.n,
+      winRate:        Math.round(r.wr * 10) / 10,
     }
   }
 

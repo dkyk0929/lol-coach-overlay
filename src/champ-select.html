@@ -27,27 +27,47 @@
   </div>
 
   <div id="build-section" class="hidden">
+
     <div id="build-header">
-      <span id="build-source">Lolalytics · Platinum+</span>
+      <span id="build-source">BUILD  ·  Lolalytics · Platinum+</span>
       <div id="build-toggle">
-        <button id="btn-most-used" class="toggle-btn active">Most Used</button>
-        <button id="btn-most-won"  class="toggle-btn">Most Won</button>
+        <button id="btn-most-used" class="toggle-btn active">Most Played</button>
+        <button id="btn-most-won"  class="toggle-btn">Highest WR</button>
       </div>
     </div>
-    <div id="build-body">
-      <div id="build-status">Fetching build data...</div>
-      <div id="build-runes" class="hidden">
-        <span id="build-keystone"></span>
-        <span id="build-tree-sep">+</span>
-        <span id="build-secondary"></span>
-        <span id="build-wr"></span>
+
+    <div id="build-status">Fetching build data...</div>
+
+    <div id="build-content" class="hidden">
+      <div id="build-cols">
+
+        <!-- Left: runes -->
+        <div id="build-rune-col">
+          <p class="col-label">RUNES</p>
+          <div id="build-rune-row">
+            <img id="build-keystone-icon" src="" alt="">
+            <div id="build-rune-text">
+              <span id="build-keystone-name"></span>
+              <span id="build-rune-trees"></span>
+            </div>
+          </div>
+          <div id="build-rune-stats"></div>
+        </div>
+
+        <div id="build-divider"></div>
+
+        <!-- Right: items -->
+        <div id="build-item-col">
+          <p class="col-label">CORE BUILD</p>
+          <div id="build-item-icons"></div>
+          <div id="build-item-names"></div>
+        </div>
+
       </div>
-      <div id="build-items" class="hidden">
-        <span class="build-label">ITEMS</span>
-        <div id="build-item-list"></div>
-      </div>
-      <button id="btn-apply-runes" class="hidden">Apply Runes</button>
+
+      <button id="btn-apply-runes">⚡ Apply Runes</button>
     </div>
+
   </div>
 
   <div id="ai-section">

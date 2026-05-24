@@ -176,57 +176,58 @@ function showBuildSection(show) {
 }
 
 function setBuildStatus(msg) {
-  document.getElementById('build-status').textContent = msg
-  document.getElementById('build-status').style.display = msg ? '' : 'none'
-  document.getElementById('build-runes').classList.add('hidden')
-  document.getElementById('build-items').classList.add('hidden')
-  document.getElementById('btn-apply-runes').classList.add('hidden')
+  const statusEl  = document.getElementById('build-status')
+  const contentEl = document.getElementById('build-content')
+  statusEl.textContent = msg
+  statusEl.style.display  = msg ? '' : 'none'
+  contentEl.classList.add('hidden')
 }
 
 function renderBuild() {
   if (!buildData) return
-
   const view = buildData[buildMode]
   if (!view) return
 
-  // Clear status
   document.getElementById('build-status').style.display = 'none'
+  document.getElementById('build-content').classList.remove('hidden')
 
-  // Runes
-  const runeEl = document.getElementById('build-runes')
+  // ── Runes ────────────────────────────────────────────────────────────────
   if (view.runes) {
-    document.getElementById('build-keystone').textContent  = view.runes.keystone
-    document.getElementById('build-secondary').textContent = view.runes.secondaryTree
-    document.getElementById('build-wr').textContent        = `${view.runes.winRate}% WR`
-    runeEl.classList.remove('hidden')
-
-    const applyBtn = document.getElementById('btn-apply-runes')
-    applyBtn.textContent = 'Apply Runes'
-    applyBtn.className   = ''     // reset any applied/error state
-    applyBtn.classList.remove('hidden')
-  } else {
-    runeEl.classList.add('hidden')
-    document.getElementById('btn-apply-runes').classList.add('hidden')
+    const r = view.runes
+    const iconEl = document.getElementById('build-keystone-icon')
+    if (r.keystoneIcon) {
+      iconEl.src   = r.keystoneIcon
+      iconEl.style.display = ''
+    } else {
+      iconEl.style.display = 'none'
+    }
+    document.getElementById('build-keystone-name').textContent = r.keystone
+    document.getElementById('build-rune-trees').textContent    = `${r.primaryTree}  +  ${r.secondaryTree}`
+    document.getElementById('build-rune-stats').textContent    = `${r.winRate}% WR · ${r.pickRate.toLocaleString()} games`
   }
 
-  // Items
-  const itemsEl = document.getElementById('build-items')
-  const listEl  = document.getElementById('build-item-list')
+  // ── Items ─────────────────────────────────────────────────────────────────
+  const iconBox  = document.getElementById('build-item-icons')
+  const nameBox  = document.getElementById('build-item-names')
   if (view.items?.ids?.length) {
     const ver = buildData.ddVersion ?? '14.24.1'
-    listEl.innerHTML = view.items.ids.map((id, i) => {
-      const name = view.items.names?.[i] ?? `#${id}`
-      const sep  = i < view.items.ids.length - 1 ? '<span class="item-sep">›</span>' : ''
-      return `<img class="item-icon"
+    iconBox.innerHTML = view.items.ids.map((id, i) =>
+      `<img class="item-icon"
         src="https://ddragon.leagueoflegends.com/cdn/${ver}/img/item/${id}.png"
-        title="${name}"
-        onerror="this.outerHTML='<div class=\\'item-icon-placeholder\\'>${i+1}</div>'"
-      >${sep}`
-    }).join('')
-    itemsEl.classList.remove('hidden')
+        title="${view.items.names?.[i] ?? id}"
+        onerror="this.outerHTML='<div class=\\'item-icon-ph\\'></div>'">`
+    ).join('')
+    nameBox.textContent = view.items.names?.join('  ·  ') ?? ''
   } else {
-    itemsEl.classList.add('hidden')
+    iconBox.innerHTML   = '<span style="font-size:9px;color:var(--muted)">No item data</span>'
+    nameBox.textContent = ''
   }
+
+  // ── Apply button ──────────────────────────────────────────────────────────
+  const applyBtn = document.getElementById('btn-apply-runes')
+  applyBtn.textContent = '⚡ Apply Runes'
+  applyBtn.className   = ''
+  applyBtn.disabled    = false
 }
 
 // ── Build toggle buttons ──────────────────────────────────────────────────────

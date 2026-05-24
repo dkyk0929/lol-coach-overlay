@@ -254,8 +254,9 @@ ipcMain.on('close-recent-games', () => {
 })
 
 // ── LCU state ────────────────────────────────────────────────────────────────
-let lcuPort     = null
-let lcuPass     = null
+let lcuPort       = null
+let lcuPass       = null
+let lcuSummonerId = null   // cached from /lol-summoner/v1/current-summoner
 let champIdMap    = {}
 let nameToId      = {}     // display name (lower) → numeric id
 let nameToInternal= {}     // display name (lower) → internal name (e.g. "AurelionSol")
@@ -626,7 +627,16 @@ function startLCUPolling() {
     }
     try {
       const { port, password } = parseLockfile(fs.readFileSync(lockPath, 'utf8'))
-      lcuPort = port; lcuPass = password
+      if (port !== lcuPort || password !== lcuPass) {
+        lcuPort = port; lcuPass = password
+        lcuSummonerId = null   // reset so we re-fetch on next tick
+      }
+      if (!lcuSummonerId) {
+        try {
+          const me = await fetchLCU('/lol-summoner/v1/current-summoner')
+          if (me?.summonerId) lcuSummonerId = me.summonerId
+        } catch { /* not ready yet */ }
+      }
       const session = await fetchLCU('/lol-champ-select/v1/session')
       processChampSelect(session)
     } catch {
@@ -1295,42 +1305,48 @@ ipcMain.handle('apply-build', async (_, { runes, items, champName, champId, summ
   }
 
   // ── 2. Create item set ─────────────────────────────────────────────────────
-  if (items?.ids?.length && summonerId) {
+  const sid = lcuSummonerId ?? summonerId
+  if (items?.ids?.length && sid) {
     try {
-      const sid      = String(summonerId)
+      const sidStr   = String(sid)
       let existing   = { itemSets: [], timestamp: 0 }
       try {
-        existing = await fetchLCU(`/lol-item-sets/v1/item-sets/${sid}/sets`) ?? existing
-      } catch { /* first time — no sets yet */ }
+        existing = await fetchLCU(`/lol-item-sets/v1/item-sets/${sidStr}/sets`) ?? existing
+        if (!Array.isArray(existing.itemSets)) existing.itemSets = []
+      } catch { /* no sets yet — start fresh */ }
 
-      // Remove any previous Coach item set for this champion
-      existing.itemSets = (existing.itemSets ?? []).filter(s =>
-        !(s.uid?.startsWith('coach-') && s.associatedChampions?.includes(champId))
-      )
+      // Remove any previous Coach item sets
+      existing.itemSets = existing.itemSets.filter(s => !s.uid?.startsWith('coach-'))
 
       existing.itemSets.push({
-        uid:                  `coach-${champId}-${Date.now()}`,
-        title:                `Coach: ${champName} (${label})`,
-        associatedChampions:  champId ? [champId] : [],
-        associatedMaps:       [11, 12],
+        uid:                 `coach-${champId}-${Date.now()}`,
+        title:               `Coach: ${champName} (${label})`,
+        associatedChampions: champId ? [champId] : [],
+        associatedMaps:      [11, 12],
         blocks: [{
-          type:  'Core Build',
+          type:                 'Core Build',
+          hideIfSummonerSpell:  '',
+          showIfSummonerSpell:  '',
           items: items.ids.map(id => ({ id: String(id), count: 1 })),
         }],
-        map:  'any',
-        mode: 'any',
-        type: 'custom',
-        sortrank: 1,
-        isGlobalForMaps:      true,
-        isGlobalForChampions: false,
+        map:                 'any',
+        mode:                'any',
+        type:                'custom',
+        sortrank:            1,
+        preferredItemSlots:  [],
+        startedFrom:         'blank',
       })
       existing.timestamp = Date.now()
 
-      await lcuMutation('PUT', `/lol-item-sets/v1/item-sets/${sid}/sets`, existing)
+      console.log('[apply-build] PUT item set for summoner', sidStr, 'champ', champId)
+      await lcuMutation('PUT', `/lol-item-sets/v1/item-sets/${sidStr}/sets`, existing)
+      console.log('[apply-build] item set OK')
     } catch (e) {
       console.error('[apply-build] items:', e.message)
       errors.push('Items: ' + e.message)
     }
+  } else {
+    console.warn('[apply-build] skipping item set — sid:', sid, 'item count:', items?.ids?.length)
   }
 
   return errors.length ? { ok: false, error: errors.join('; ') } : { ok: true }

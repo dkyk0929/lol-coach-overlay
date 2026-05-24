@@ -1133,33 +1133,55 @@ const KEYSTONE_ICONS = {
 }
 const PERK_IMG_BASE = 'https://ddragon.leagueoflegends.com/cdn/img/perk-images/Styles/'
 
+// Resolve win-rate from whatever fields Lolalytics provides.
+// They use: e.wr (fraction 0-1), or e.win/e.n (raw counts), or e.wins/e.games
+function resolveWR(e) {
+  if (typeof e.wr  === 'number' && e.wr  > 0) return e.wr * (e.wr <= 1 ? 100 : 1)
+  if (typeof e.win === 'number' && e.n  > 0)  return (e.win / e.n)  * 100
+  if (typeof e.wins=== 'number' && e.games > 0) return (e.wins / e.games) * 100
+  return 0
+}
+function resolveN(e) {
+  return e.n ?? e.games ?? e.count ?? 0
+}
+
 function parseBuildResponse(raw, itemNames) {
   console.log('[build] top-level keys:', Object.keys(raw).join(', '))
 
   // ── Runes ──────────────────────────────────────────────────────────────────
-  // Lolalytics can return runes as an object {0:{...},1:{...}} or an array
   const rawRunes = raw.runes ?? raw.runeData ?? {}
   const runeList = (Array.isArray(rawRunes) ? rawRunes : Object.values(rawRunes))
     .filter(e => Array.isArray(e?.ids) && e.ids.length >= 6)
-    .map(e => ({ ids: e.ids, n: e.n ?? 0, win: e.win ?? 0, wr: e.n > 0 ? (e.win / e.n) * 100 : 0 }))
+    .map(e => ({ ids: e.ids, n: resolveN(e), wr: resolveWR(e) }))
 
-  const byUsage  = [...runeList].sort((a, b) => b.n - a.n)
-  const byWinRate = [...runeList].sort((a, b) => b.wr - a.wr)
+  // Filter to sets with enough games to trust win-rate (min 50)
+  const withGames = runeList.filter(e => e.n >= 50)
+  const runePool  = withGames.length >= 2 ? withGames : runeList
+
+  const byUsage   = [...runePool].sort((a, b) => b.n  - a.n)
+  const byWinRate = [...runePool].sort((a, b) => b.wr - a.wr)
+
+  console.log('[build] rune sets found:', runeList.length,
+    '| most used WR:', byUsage[0]?.wr?.toFixed(1), 'n:', byUsage[0]?.n,
+    '| highest WR:', byWinRate[0]?.wr?.toFixed(1), 'n:', byWinRate[0]?.n,
+    '| same?', byUsage[0]?.ids?.join(',') === byWinRate[0]?.ids?.join(','))
 
   // ── Items ──────────────────────────────────────────────────────────────────
   const rawItems = raw.core_items ?? raw.coreItems ?? raw.item3 ?? raw.items ?? {}
   const itemList = (Array.isArray(rawItems) ? rawItems : Object.values(rawItems))
     .filter(e => Array.isArray(e?.ids) && e.ids.length >= 2)
     .map(e => ({
-      ids:  e.ids.slice(0, 3),
+      ids:   e.ids.slice(0, 3),
       names: e.ids.slice(0, 3).map(id => itemNames[String(id)] ?? `#${id}`),
-      n:    e.n ?? 0,
-      win:  e.win ?? 0,
-      wr:   e.n > 0 ? (e.win / e.n) * 100 : 0,
+      n:     resolveN(e),
+      wr:    resolveWR(e),
     }))
 
-  const itemsByUsage  = [...itemList].sort((a, b) => b.n - a.n)
-  const itemsByWin    = [...itemList].sort((a, b) => b.wr - a.wr)
+  const itemsWithGames = itemList.filter(e => e.n >= 50)
+  const itemPool       = itemsWithGames.length >= 2 ? itemsWithGames : itemList
+
+  const itemsByUsage = [...itemPool].sort((a, b) => b.n  - a.n)
+  const itemsByWin   = [...itemPool].sort((a, b) => b.wr - a.wr)
 
   function fmtRune(r) {
     if (!r) return null

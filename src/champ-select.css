@@ -159,6 +159,144 @@ body {
 .pos-BOT { background: rgba(100,181,246,0.12); color: #64B5F6; border: 1px solid rgba(100,181,246,0.24); }
 .pos-SUP { background: rgba(255,213,79,0.12);  color: #FFD54F; border: 1px solid rgba(255,213,79,0.24); }
 
+/* ── Build section ── */
+#build-section {
+  border-top: 1px solid rgba(200,155,60,0.13);
+  padding: 5px 14px 6px;
+  flex-shrink: 0;
+}
+#build-section.hidden { display: none; }
+
+#build-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 5px;
+}
+#build-source {
+  font-size: 8px;
+  font-weight: 700;
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+#build-toggle {
+  display: flex;
+  gap: 3px;
+}
+.toggle-btn {
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  padding: 2px 8px;
+  border-radius: 3px;
+  border: 1px solid rgba(200,155,60,0.22);
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.toggle-btn.active {
+  background: rgba(200,155,60,0.15);
+  border-color: rgba(200,155,60,0.5);
+  color: var(--gold);
+}
+.toggle-btn:hover:not(.active) {
+  border-color: rgba(200,155,60,0.35);
+  color: var(--text);
+}
+
+#build-body { display: flex; flex-direction: column; gap: 4px; }
+
+#build-status { font-size: 9px; color: var(--muted); font-style: italic; }
+
+#build-runes {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  flex-wrap: wrap;
+}
+#build-runes.hidden { display: none; }
+#build-keystone {
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--gold);
+}
+#build-tree-sep { font-size: 9px; color: var(--muted); }
+#build-secondary { font-size: 10px; color: var(--text); }
+#build-wr {
+  margin-left: auto;
+  font-size: 9px;
+  color: var(--muted);
+}
+
+#build-items {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+#build-items.hidden { display: none; }
+.build-label {
+  font-size: 7px;
+  font-weight: 800;
+  letter-spacing: 1.5px;
+  color: var(--muted);
+  flex-shrink: 0;
+}
+#build-item-list {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-wrap: wrap;
+}
+.item-icon {
+  width: 24px;
+  height: 24px;
+  border-radius: 3px;
+  border: 1px solid rgba(200,155,60,0.2);
+  object-fit: cover;
+  background: rgba(8,18,30,0.8);
+  flex-shrink: 0;
+}
+.item-icon-placeholder {
+  width: 24px;
+  height: 24px;
+  border-radius: 3px;
+  border: 1px solid rgba(200,155,60,0.15);
+  background: rgba(8,18,30,0.6);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 6px;
+  color: var(--muted);
+  flex-shrink: 0;
+}
+.item-name {
+  font-size: 9px;
+  color: var(--text);
+  white-space: nowrap;
+}
+.item-sep { font-size: 9px; color: var(--muted); }
+
+#btn-apply-runes {
+  align-self: flex-end;
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: 1px;
+  padding: 3px 12px;
+  border-radius: 3px;
+  border: 1px solid rgba(200,155,60,0.4);
+  background: rgba(200,155,60,0.12);
+  color: var(--gold);
+  cursor: pointer;
+  transition: all 0.15s;
+  margin-top: 2px;
+}
+#btn-apply-runes:hover { background: rgba(200,155,60,0.22); border-color: rgba(200,155,60,0.7); }
+#btn-apply-runes.hidden  { display: none; }
+#btn-apply-runes.applied { color: var(--green); border-color: rgba(31,214,95,0.4); background: rgba(31,214,95,0.1); }
+#btn-apply-runes.error   { color: var(--red);   border-color: rgba(255,59,59,0.4);  background: rgba(255,59,59,0.08); }
+
 /* ── AI section ── */
 #ai-section {
   border-top: 1px solid rgba(200,155,60,0.09);

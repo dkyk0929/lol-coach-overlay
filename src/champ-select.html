@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' https://raw.communitydragon.org data:">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' https://raw.communitydragon.org https://ddragon.leagueoflegends.com data:">
   <title>Champ Select</title>
   <link rel="stylesheet" href="champ-select.css">
 </head>
@@ -23,6 +23,30 @@
     <div id="enemy-team" class="team-col">
       <div class="team-header">ENEMIES</div>
       <div id="enemy-list"></div>
+    </div>
+  </div>
+
+  <div id="build-section" class="hidden">
+    <div id="build-header">
+      <span id="build-source">Lolalytics · Platinum+</span>
+      <div id="build-toggle">
+        <button id="btn-most-used" class="toggle-btn active">Most Used</button>
+        <button id="btn-most-won"  class="toggle-btn">Most Won</button>
+      </div>
+    </div>
+    <div id="build-body">
+      <div id="build-status">Fetching build data...</div>
+      <div id="build-runes" class="hidden">
+        <span id="build-keystone"></span>
+        <span id="build-tree-sep">+</span>
+        <span id="build-secondary"></span>
+        <span id="build-wr"></span>
+      </div>
+      <div id="build-items" class="hidden">
+        <span class="build-label">ITEMS</span>
+        <div id="build-item-list"></div>
+      </div>
+      <button id="btn-apply-runes" class="hidden">Apply Runes</button>
     </div>
   </div>
 

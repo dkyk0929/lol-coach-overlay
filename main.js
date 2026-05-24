@@ -260,6 +260,8 @@ let champIdMap    = {}
 let nameToId      = {}     // display name (lower) → numeric id
 let nameToInternal= {}     // display name (lower) → internal name (e.g. "AurelionSol")
 let lastCSKey     = null   // detect meaningful champ-select changes
+let ddVersion     = null   // latest Data Dragon version (set when champ map loads)
+let itemNameCache = null   // { itemId: itemName }
 
 // ── Game scout state ──────────────────────────────────────────────────────────
 let gameScoutShown  = false
@@ -418,6 +420,7 @@ async function loadChampionMap() {
   try {
     const versions  = await fetchJSON('https://ddragon.leagueoflegends.com/api/versions.json')
     const version   = versions[0]
+    ddVersion = version
     const champData = await fetchJSON(`https://ddragon.leagueoflegends.com/cdn/${version}/data/en_US/champion.json`)
     champIdMap = {}; nameToId = {}; nameToInternal = {}
     for (const c of Object.values(champData.data)) {
@@ -492,7 +495,7 @@ function createChampSelectWindow() {
   if (champSelectWindow && !champSelectWindow.isDestroyed()) return
   const cfg = loadConfig()
   const { width: sw } = screen.getPrimaryDisplay().workAreaSize
-  const w = 760, h = 250
+  const w = 760, h = 310
   champSelectWindow = new BrowserWindow({
     width: w, height: h,
     x: cfg.csBarX ?? Math.floor((sw - w) / 2),
@@ -1030,6 +1033,211 @@ ipcMain.handle('ai-champ-select', async (event, prompt) => {
       userText: prompt, maxTokens: 160,
     })
   } catch (e) { console.error('AI champ-select error:', e.message); return null }
+})
+
+// ── Champion build fetcher ────────────────────────────────────────────────────
+async function getItemNames() {
+  if (itemNameCache) return itemNameCache
+  try {
+    const ver  = ddVersion ?? (await fetchJSON('https://ddragon.leagueoflegends.com/api/versions.json'))[0]
+    const data = await fetchJSON(`https://ddragon.leagueoflegends.com/cdn/${ver}/data/en_US/item.json`)
+    itemNameCache = {}
+    for (const [id, item] of Object.entries(data.data)) itemNameCache[id] = item.name
+  } catch { itemNameCache = {} }
+  return itemNameCache
+}
+
+function fetchJSONBrowser(url) {
+  return new Promise((resolve, reject) => {
+    const u = new URL(url)
+    const req = https.get({
+      hostname: u.hostname,
+      path: u.pathname + u.search,
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+        'Referer': `https://${u.hostname}/`,
+        'Accept': 'application/json, */*',
+        'Accept-Language': 'en-US,en;q=0.9',
+      },
+      rejectUnauthorized: true,
+      timeout: 7000,
+    }, (res) => {
+      let data = ''
+      res.on('data', c => data += c)
+      res.on('end', () => {
+        if (res.statusCode !== 200) { reject(new Error(`HTTP ${res.statusCode}`)); return }
+        try { resolve(JSON.parse(data)) } catch { reject(new Error('JSON parse')) }
+      })
+    })
+    req.on('error', reject)
+    req.on('timeout', () => { req.destroy(); reject(new Error('timeout')) })
+  })
+}
+
+function getStyleId(perkId) {
+  const id = parseInt(perkId)
+  if (id >= 8000 && id < 8100) return 8000  // Precision
+  if (id >= 8100 && id < 8200) return 8100  // Domination
+  if (id >= 8200 && id < 8300) return 8200  // Sorcery
+  if (id >= 8300 && id < 8400) return 8300  // Inspiration
+  if (id >= 8400 && id < 8500) return 8400  // Resolve
+  if (id >= 9900)              return 8100  // Hail of Blades (9923) → Domination
+  return 8000
+}
+
+const KEYSTONE_NAMES = {
+  8005: 'Press the Attack', 8008: 'Lethal Tempo',   8021: 'Fleet Footwork', 8010: 'Conqueror',
+  8112: 'Electrocute',      8124: 'Predator',        8128: 'Dark Harvest',   9923: 'Hail of Blades',
+  8214: 'Arcane Comet',     8229: 'Phase Rush',      8230: 'Summon Aery',
+  8351: 'Glacial Augment',  8360: 'Unsealed Spellbook', 8358: 'First Strike',
+  8437: 'Grasp of the Undying', 8439: 'Aftershock',  8465: 'Guardian',
+}
+const TREE_NAMES = { 8000: 'Precision', 8100: 'Domination', 8200: 'Sorcery', 8300: 'Inspiration', 8400: 'Resolve' }
+
+function parseBuildResponse(raw, itemNames) {
+  console.log('[build] top-level keys:', Object.keys(raw).join(', '))
+
+  // ── Runes ──────────────────────────────────────────────────────────────────
+  // Lolalytics can return runes as an object {0:{...},1:{...}} or an array
+  const rawRunes = raw.runes ?? raw.runeData ?? {}
+  const runeList = (Array.isArray(rawRunes) ? rawRunes : Object.values(rawRunes))
+    .filter(e => Array.isArray(e?.ids) && e.ids.length >= 6)
+    .map(e => ({ ids: e.ids, n: e.n ?? 0, win: e.win ?? 0, wr: e.n > 0 ? (e.win / e.n) * 100 : 0 }))
+
+  const byUsage  = [...runeList].sort((a, b) => b.n - a.n)
+  const byWinRate = [...runeList].sort((a, b) => b.wr - a.wr)
+
+  // ── Items ──────────────────────────────────────────────────────────────────
+  const rawItems = raw.core_items ?? raw.coreItems ?? raw.item3 ?? raw.items ?? {}
+  const itemList = (Array.isArray(rawItems) ? rawItems : Object.values(rawItems))
+    .filter(e => Array.isArray(e?.ids) && e.ids.length >= 2)
+    .map(e => ({
+      ids:  e.ids.slice(0, 3),
+      names: e.ids.slice(0, 3).map(id => itemNames[String(id)] ?? `#${id}`),
+      n:    e.n ?? 0,
+      win:  e.win ?? 0,
+      wr:   e.n > 0 ? (e.win / e.n) * 100 : 0,
+    }))
+
+  const itemsByUsage  = [...itemList].sort((a, b) => b.n - a.n)
+  const itemsByWin    = [...itemList].sort((a, b) => b.wr - a.wr)
+
+  function fmtRune(r) {
+    if (!r) return null
+    const primary   = getStyleId(r.ids[0])
+    const secondary = getStyleId(r.ids[4])
+    return {
+      ids:           r.ids,
+      primaryStyleId: primary,
+      subStyleId:    secondary,
+      keystone:      KEYSTONE_NAMES[r.ids[0]] ?? `Perk ${r.ids[0]}`,
+      primaryTree:   TREE_NAMES[primary]   ?? 'Unknown',
+      secondaryTree: TREE_NAMES[secondary] ?? 'Unknown',
+      pickRate:      r.n,
+      winRate:       Math.round(r.wr * 10) / 10,
+    }
+  }
+
+  const ver = ddVersion ?? '14.24.1'
+  return {
+    mostUsed: { runes: fmtRune(byUsage[0]),   items: itemsByUsage[0]  ?? null },
+    mostWon:  { runes: fmtRune(byWinRate[0]),  items: itemsByWin[0]   ?? null },
+    totalGames: raw.header?.n ?? raw.n ?? 0,
+    patch:      raw.header?.patch ?? '',
+    ddVersion:  ver,
+  }
+}
+
+ipcMain.handle('get-build', async (_, { champName, position }) => {
+  if (!champName) return null
+  const lolName = champName.toLowerCase().replace(/[^a-z0-9]/g, '')
+  const champId = nameToId[champName.toLowerCase()]
+  const laneMap = { TOP: 'top', JUNGLE: 'jungle', MIDDLE: 'mid', BOTTOM: 'adc', UTILITY: 'support' }
+  const lane    = laneMap[position] ?? 'mid'
+
+  const itemNames = await getItemNames()
+
+  const urls = [
+    `https://lolalytics.com/api/champion/?champ=${lolName}&patch=&tier=platinum_plus&region=all&queue=420&lane=${lane}`,
+    champId ? `https://a3.lolalytics.com/mega/?ep=champion&p=d&v=1&patch=&cid=${champId}&lane=${lane}&tier=platinum_plus&queue=420&region=all` : null,
+  ].filter(Boolean)
+
+  for (const url of urls) {
+    try {
+      console.log('[build] fetching:', url)
+      const raw   = await fetchJSONBrowser(url)
+      const build = parseBuildResponse(raw, itemNames)
+      if (build.mostUsed.runes || build.mostUsed.items) {
+        console.log('[build] parsed OK — keystone:', build.mostUsed.runes?.keystone)
+        return build
+      }
+      console.log('[build] parsed but empty, trying next URL')
+    } catch (e) {
+      console.log('[build] fetch failed:', e.message)
+    }
+  }
+  return null
+})
+
+// ── LCU rune writer ───────────────────────────────────────────────────────────
+function lcuMutation(method, lcuPath, body) {
+  return new Promise((resolve, reject) => {
+    if (!lcuPort || !lcuPass) { reject(new Error('LCU not connected')); return }
+    const auth    = Buffer.from(`riot:${lcuPass}`).toString('base64')
+    const payload = body ? JSON.stringify(body) : null
+    const req     = https.request({
+      hostname: '127.0.0.1',
+      port:     lcuPort,
+      path:     lcuPath,
+      method,
+      rejectUnauthorized: false,
+      timeout:  3000,
+      headers: {
+        'Authorization': `Basic ${auth}`,
+        'Content-Type':  'application/json',
+        'Accept':        'application/json',
+        ...(payload ? { 'Content-Length': Buffer.byteLength(payload) } : {}),
+      },
+    }, (res) => {
+      let data = ''
+      res.on('data', c => data += c)
+      res.on('end', () => {
+        if (res.statusCode >= 200 && res.statusCode < 300) {
+          try { resolve(data ? JSON.parse(data) : {}) } catch { resolve({}) }
+        } else {
+          reject(new Error(`LCU ${method} ${lcuPath} → ${res.statusCode}`))
+        }
+      })
+    })
+    req.on('timeout', () => { req.destroy(); reject(new Error('LCU timeout')) })
+    req.on('error', reject)
+    if (payload) req.write(payload)
+    req.end()
+  })
+}
+
+ipcMain.handle('apply-runes', async (_, { ids, primaryStyleId, subStyleId, name }) => {
+  if (!lcuPort || !lcuPass) return { ok: false, error: 'League client not detected' }
+  try {
+    // Get existing pages — delete a previously written Coach page, or the last editable one
+    const pages     = await fetchLCU('/lol-perks/v1/pages')
+    const coachPage = Array.isArray(pages) ? pages.find(p => p.name?.startsWith('Coach:')) : null
+    const lastPage  = Array.isArray(pages) && pages.length ? pages[pages.length - 1] : null
+    const toDelete  = coachPage ?? lastPage
+    if (toDelete?.id) await lcuMutation('DELETE', `/lol-perks/v1/pages/${toDelete.id}`, null)
+
+    await lcuMutation('POST', '/lol-perks/v1/pages', {
+      name,
+      primaryStyleId,
+      subStyleId,
+      selectedPerkIds: ids,
+      current: true,
+    })
+    return { ok: true }
+  } catch (e) {
+    console.error('[apply-runes]', e.message)
+    return { ok: false, error: e.message }
+  }
 })
 
 // ── Session history ───────────────────────────────────────────────────────────

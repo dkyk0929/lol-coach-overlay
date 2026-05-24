@@ -7,10 +7,17 @@ const PORTRAIT_BASE = 'https://raw.communitydragon.org/latest/plugins/rcp-be-lol
 let lastAIPromptKey = null
 let aiPending       = false
 
+// ── Build state ───────────────────────────────────────────────────────────────
+let buildData        = null   // { mostUsed, mostWon, totalGames, patch, ddVersion }
+let buildMode        = 'mostUsed'  // 'mostUsed' | 'mostWon'
+let buildFetching    = false
+let lastBuildChamp   = null   // prevent re-fetching same champ
+
 window.cs.onUpdate(async (state) => {
   renderHeader(state)
   renderTeams(state)
   maybeRequestAI(state)
+  maybeRequestBuild(state)
 })
 
 function renderHeader({ position, bans }) {
@@ -64,8 +71,7 @@ function playerRow(p, isAlly, myLocked) {
   </div>`
 }
 
-// ── AI recommendations ─────────────────────────────────────────────────────────
-
+// ── AI recommendations ────────────────────────────────────────────────────────
 async function maybeRequestAI({ position, myTeam, theirTeam, bans, myLocked }) {
   if (aiPending) return
 
@@ -119,3 +125,137 @@ async function maybeRequestAI({ position, myTeam, theirTeam, bans, myLocked }) {
     aiPending = false
   }
 }
+
+// ── Build fetcher ─────────────────────────────────────────────────────────────
+async function maybeRequestBuild({ myLocked, position }) {
+  if (!myLocked) return
+  if (buildFetching) return
+  if (myLocked === lastBuildChamp) return   // already fetched for this champ
+
+  lastBuildChamp = myLocked
+  buildData      = null
+  buildMode      = 'mostUsed'
+  showBuildSection(true)
+  setBuildStatus('Fetching build data...')
+
+  buildFetching = true
+  try {
+    const data = await window.cs.getBuild(myLocked, position)
+    buildData = data
+    if (data) {
+      renderBuild()
+    } else {
+      setBuildStatus('Build data unavailable')
+    }
+  } catch {
+    setBuildStatus('Could not fetch build')
+  } finally {
+    buildFetching = false
+  }
+}
+
+function showBuildSection(show) {
+  document.getElementById('build-section').classList.toggle('hidden', !show)
+}
+
+function setBuildStatus(msg) {
+  document.getElementById('build-status').textContent = msg
+  document.getElementById('build-status').style.display = msg ? '' : 'none'
+  document.getElementById('build-runes').classList.add('hidden')
+  document.getElementById('build-items').classList.add('hidden')
+  document.getElementById('btn-apply-runes').classList.add('hidden')
+}
+
+function renderBuild() {
+  if (!buildData) return
+
+  const view = buildData[buildMode]
+  if (!view) return
+
+  // Clear status
+  document.getElementById('build-status').style.display = 'none'
+
+  // Runes
+  const runeEl = document.getElementById('build-runes')
+  if (view.runes) {
+    document.getElementById('build-keystone').textContent  = view.runes.keystone
+    document.getElementById('build-secondary').textContent = view.runes.secondaryTree
+    document.getElementById('build-wr').textContent        = `${view.runes.winRate}% WR`
+    runeEl.classList.remove('hidden')
+
+    const applyBtn = document.getElementById('btn-apply-runes')
+    applyBtn.textContent = 'Apply Runes'
+    applyBtn.className   = ''     // reset any applied/error state
+    applyBtn.classList.remove('hidden')
+  } else {
+    runeEl.classList.add('hidden')
+    document.getElementById('btn-apply-runes').classList.add('hidden')
+  }
+
+  // Items
+  const itemsEl = document.getElementById('build-items')
+  const listEl  = document.getElementById('build-item-list')
+  if (view.items?.ids?.length) {
+    const ver = buildData.ddVersion ?? '14.24.1'
+    listEl.innerHTML = view.items.ids.map((id, i) => {
+      const name = view.items.names?.[i] ?? `#${id}`
+      const sep  = i < view.items.ids.length - 1 ? '<span class="item-sep">›</span>' : ''
+      return `<img class="item-icon"
+        src="https://ddragon.leagueoflegends.com/cdn/${ver}/img/item/${id}.png"
+        title="${name}"
+        onerror="this.outerHTML='<div class=\\'item-icon-placeholder\\'>${i+1}</div>'"
+      >${sep}`
+    }).join('')
+    itemsEl.classList.remove('hidden')
+  } else {
+    itemsEl.classList.add('hidden')
+  }
+}
+
+// ── Build toggle buttons ──────────────────────────────────────────────────────
+document.getElementById('btn-most-used').addEventListener('click', () => {
+  buildMode = 'mostUsed'
+  document.getElementById('btn-most-used').classList.add('active')
+  document.getElementById('btn-most-won').classList.remove('active')
+  if (buildData) renderBuild()
+})
+
+document.getElementById('btn-most-won').addEventListener('click', () => {
+  buildMode = 'mostWon'
+  document.getElementById('btn-most-won').classList.add('active')
+  document.getElementById('btn-most-used').classList.remove('active')
+  if (buildData) renderBuild()
+})
+
+// ── Apply runes button ────────────────────────────────────────────────────────
+document.getElementById('btn-apply-runes').addEventListener('click', async () => {
+  if (!buildData) return
+  const view = buildData[buildMode]
+  if (!view?.runes) return
+
+  const btn = document.getElementById('btn-apply-runes')
+  btn.textContent = 'Applying...'
+  btn.disabled    = true
+
+  const champName = lastBuildChamp ?? 'Champion'
+  const label     = buildMode === 'mostUsed' ? 'Popular' : 'High WR'
+  const result    = await window.cs.applyRunes({
+    ids:            view.runes.ids,
+    primaryStyleId: view.runes.primaryStyleId,
+    subStyleId:     view.runes.subStyleId,
+    name:           `Coach: ${champName} (${label})`,
+  })
+
+  if (result?.ok) {
+    btn.textContent = '✓ Applied!'
+    btn.classList.add('applied')
+  } else {
+    btn.textContent = `✗ ${result?.error ?? 'Failed'}`
+    btn.classList.add('error')
+  }
+  btn.disabled = false
+  setTimeout(() => {
+    btn.textContent = 'Apply Runes'
+    btn.classList.remove('applied', 'error')
+  }, 3000)
+})

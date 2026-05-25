@@ -13,19 +13,13 @@ const PORTRAIT_BASE = 'https://raw.communitydragon.org/latest/plugins/rcp-be-lol
 let lastAIPromptKey = null
 let aiPending       = false
 
-// ── Build state ───────────────────────────────────────────────────────────────
-let buildData        = null   // { mostUsed, mostWon, totalGames, patch, ddVersion }
-let buildMode        = 'mostUsed'  // 'mostUsed' | 'mostWon'
-let buildFetching    = false
-let lastBuildChamp   = null   // prevent re-fetching same champ
-let csState          = null   // latest full cs-update payload
+let csState = null   // latest full cs-update payload
 
 window.cs.onUpdate(async (state) => {
   csState = state
   renderHeader(state)
   renderTeams(state)
   maybeRequestAI(state)
-  maybeRequestBuild(state)
 })
 
 function renderHeader({ position, bans }) {
@@ -145,144 +139,3 @@ async function maybeRequestAI({ position, myTeam, theirTeam, bans, myLocked }) {
   }
 }
 
-// ── Build fetcher ─────────────────────────────────────────────────────────────
-async function maybeRequestBuild({ myLocked, position }) {
-  if (!myLocked) return
-  if (buildFetching) return
-  if (myLocked === lastBuildChamp) return   // already fetched for this champ
-
-  lastBuildChamp = myLocked
-  buildData      = null
-  buildMode      = 'mostUsed'
-  showBuildSection(true)
-  setBuildStatus('Fetching build data...')
-
-  buildFetching = true
-  try {
-    const data = await window.cs.getBuild(myLocked, position, csState?.myChampionId ?? 0)
-    if (data?.error) {
-      setBuildStatus(`Failed: ${data.error}`)
-    } else if (data?.mostUsed) {
-      buildData = data
-      document.getElementById('build-source').textContent = 'RUNES  ·  RECOMMENDED'
-      renderBuild()
-    } else {
-      setBuildStatus('No rune data from client')
-    }
-  } catch (e) {
-    setBuildStatus(`Error: ${e.message}`)
-  } finally {
-    buildFetching = false
-  }
-}
-
-function showBuildSection(show) {
-  document.getElementById('build-section').classList.toggle('hidden', !show)
-}
-
-function setBuildStatus(msg) {
-  const statusEl  = document.getElementById('build-status')
-  const contentEl = document.getElementById('build-content')
-  statusEl.textContent = msg
-  statusEl.style.display  = msg ? '' : 'none'
-  contentEl.classList.add('hidden')
-}
-
-function renderBuild() {
-  if (!buildData) return
-  const view = buildData[buildMode]
-  if (!view) return
-
-  document.getElementById('build-status').style.display = 'none'
-  document.getElementById('build-content').classList.remove('hidden')
-
-  // ── Runes ────────────────────────────────────────────────────────────────
-  if (view.runes) {
-    const r = view.runes
-    const iconEl = document.getElementById('build-keystone-icon')
-    if (r.keystoneIcon) {
-      iconEl.src   = r.keystoneIcon
-      iconEl.style.display = ''
-    } else {
-      iconEl.style.display = 'none'
-    }
-    document.getElementById('build-keystone-name').textContent = r.keystone
-    document.getElementById('build-rune-trees').textContent    = `${r.primaryTree}  +  ${r.secondaryTree}`
-    document.getElementById('build-rune-stats').textContent    =
-      r.winRate ? `${r.winRate}% WR · ${r.pickRate.toLocaleString()} games` : ''
-  }
-
-  // ── Items ─────────────────────────────────────────────────────────────────
-  const itemCol  = document.getElementById('build-item-col')
-  const iconBox  = document.getElementById('build-item-icons')
-  const nameBox  = document.getElementById('build-item-names')
-  if (view.items?.ids?.length) {
-    itemCol.style.display = ''
-    document.getElementById('build-divider').style.display = ''
-    const ver = buildData.ddVersion ?? '14.24.1'
-    iconBox.innerHTML = view.items.ids.map((id, i) =>
-      `<img class="item-icon"
-        src="https://ddragon.leagueoflegends.com/cdn/${ver}/img/item/${id}.png"
-        title="${view.items.names?.[i] ?? id}"
-        onerror="this.outerHTML='<div class=\\'item-icon-ph\\'></div>'">`
-    ).join('')
-    nameBox.textContent = view.items.names?.join('  ·  ') ?? ''
-  } else {
-    itemCol.style.display = 'none'
-    document.getElementById('build-divider').style.display = 'none'
-  }
-
-}
-
-// ── Build toggle buttons (auto-apply on click) ────────────────────────────────
-async function applyCurrentBuild(mode, btn) {
-  if (!buildData) return
-  const view = buildData[mode]
-  if (!view) return
-
-  btn.textContent = '⚡ Applying...'
-  btn.disabled    = true
-
-  const result = await window.cs.applyBuild({
-    runes:       view.runes  ?? null,
-    items:       view.items  ?? null,
-    champName:   lastBuildChamp ?? 'Champion',
-    champId:     csState?.myChampionId ?? 0,
-    summonerId:  csState?.mySummonerId ?? 0,
-    mode,
-  })
-
-  btn.disabled = false
-  if (result?.ok) {
-    btn.textContent = '✓ Applied'
-    btn.classList.add('applied')
-  } else {
-    btn.textContent = '✗ Failed'
-    btn.classList.add('error')
-    console.warn('[apply-build]', result?.error)
-  }
-  setTimeout(() => {
-    btn.textContent = btn.id === 'btn-most-used' ? 'Most Played' : 'Highest WR'
-    btn.classList.remove('applied', 'error')
-  }, 2500)
-}
-
-document.getElementById('btn-most-used').addEventListener('click', async function () {
-  buildMode = 'mostUsed'
-  this.classList.add('active')
-  document.getElementById('btn-most-won').classList.remove('active')
-  if (buildData) {
-    renderBuild()
-    await applyCurrentBuild('mostUsed', this)
-  }
-})
-
-document.getElementById('btn-most-won').addEventListener('click', async function () {
-  buildMode = 'mostWon'
-  this.classList.add('active')
-  document.getElementById('btn-most-used').classList.remove('active')
-  if (buildData) {
-    renderBuild()
-    await applyCurrentBuild('mostWon', this)
-  }
-})

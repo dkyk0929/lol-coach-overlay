@@ -1125,9 +1125,13 @@ function fetchBuildViaCDP(champPageUrl) {
 
     win.loadURL(champPageUrl)
 
-    win.webContents.on('did-fail-load', (_, code, desc) => {
+    // Only treat it as a fatal failure if the MAIN frame fails with a real error.
+    // ERR_ABORTED (-3) is normal during redirects — ignore it.
+    win.webContents.on('did-fail-load', (_, code, desc, _url, isMainFrame) => {
+      if (!isMainFrame) return          // sub-frame / resource failure — ignore
+      if (code === -3) return           // ERR_ABORTED — redirect in progress, ignore
       clearTimeout(timer)
-      finish(() => { try { win.destroy() } catch {}; reject(new Error('load failed: ' + desc)) })
+      finish(() => { try { win.destroy() } catch {}; reject(new Error(`load failed (${code}): ${desc}`)) })
     })
   })
 }
@@ -1262,7 +1266,7 @@ ipcMain.handle('get-build', async (_, { champName, position }) => {
 
   // Navigate to the real Lolalytics champion build page.
   // CDP intercepts the JSON the page fetches — bypasses all bot detection.
-  const champPageUrl = `https://lolalytics.com/lol/${lolName}/build/?tier=platinum_plus&queue=420&position=${lane}`
+  const champPageUrl = `https://lolalytics.com/lol/${lolName}/${lane}/build/`
   console.log('[build] loading page:', champPageUrl)
 
   try {

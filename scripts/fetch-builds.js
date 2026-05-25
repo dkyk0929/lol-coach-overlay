@@ -1,11 +1,13 @@
 // Runs in GitHub Actions (Node 20).
-// Uses Puppeteer to intercept Lolalytics' own internal API requests and
-// capture the JSON stats data directly — no HTML parsing needed.
+// Uses puppeteer-extra + stealth plugin to bypass Cloudflare bot detection,
+// then intercepts Lolalytics' internal JSON API responses.
 
 'use strict'
 const { readFileSync, writeFileSync } = require('fs')
-const path      = require('path')
-const puppeteer = require('puppeteer')
+const path           = require('path')
+const puppeteer      = require('puppeteer-extra')
+const StealthPlugin  = require('puppeteer-extra-plugin-stealth')
+puppeteer.use(StealthPlugin())
 
 const BUILDS_PATH = path.join(__dirname, '..', 'builds.json')
 
@@ -191,11 +193,11 @@ async function fetchChampBuild(page, name, position) {
       }).catch(() => null)
 
       if (pageData) {
-        // First run only: log debug info so we can see the page structure
-        if (name === 'Aatrox' && position === 'TOP') {
-          console.log(`\n[debug] Page title: "${pageData.title}"`)
-          console.log(`[debug] Script count: ${pageData.scriptCount}`)
-          console.log(`[debug] Script samples:`, JSON.stringify(pageData.scripts).slice(0, 300))
+        // Log debug info for first champion so we can diagnose the page structure
+        if (name === 'Aatrox') {
+          console.log(`\n[debug-${position}] title="${pageData.title}" scripts=${pageData.scriptCount}`)
+          console.log(`[debug-${position}] intercepted=${pageData.interceptedUrls?.join(', ') ?? 'none'}`)
+          console.log(`[debug-${position}] scripts:`, JSON.stringify(pageData.scripts).slice(0, 400))
         }
         for (const c of pageData.candidates) {
           const result = buildResult(c)
@@ -220,16 +222,21 @@ async function main() {
   console.log(`Found ${allChampNames.length} champions\n`)
 
   const browser = await puppeteer.launch({
-    headless: 'new',
-    args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage'],
+    headless: true,   // stealth works best with legacy headless mode
+    args: [
+      '--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage',
+      '--disable-blink-features=AutomationControlled',  // extra CF evasion
+    ],
   })
   const page = await browser.newPage()
+  // Stealth plugin handles most fingerprinting, but set a realistic UA too
   await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36')
   await page.setExtraHTTPHeaders({ 'Accept-Language': 'en-US,en;q=0.9' })
+  await page.setViewport({ width: 1280, height: 800 })
 
-  console.log('Warming up (Cloudflare cookie)…')
-  await page.goto('https://lolalytics.com/', { waitUntil: 'domcontentloaded', timeout: 30000 })
-  await new Promise(r => setTimeout(r, 3000))
+  console.log('Warming up (Cloudflare cookie via stealth)…')
+  await page.goto('https://lolalytics.com/', { waitUntil: 'networkidle2', timeout: 30000 })
+  await new Promise(r => setTimeout(r, 2000))
   console.log('Ready.\n')
 
   let updated = 0, skipped = 0

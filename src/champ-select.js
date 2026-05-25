@@ -159,14 +159,14 @@ async function maybeRequestBuild({ myLocked, position }) {
 
   buildFetching = true
   try {
-    const data = await window.cs.getBuild(myLocked, position)
+    const data = await window.cs.getBuild(myLocked, position, csState?.myChampionId ?? 0)
     if (data?.error) {
-      setBuildStatus(`Fetch failed: ${data.error}`)
+      setBuildStatus(`Failed: ${data.error}`)
     } else if (data?.mostUsed) {
       buildData = data
       renderBuild()
     } else {
-      setBuildStatus('Build data unavailable')
+      setBuildStatus('No rune data from client')
     }
   } catch (e) {
     setBuildStatus(`Error: ${e.message}`)
@@ -207,13 +207,17 @@ function renderBuild() {
     }
     document.getElementById('build-keystone-name').textContent = r.keystone
     document.getElementById('build-rune-trees').textContent    = `${r.primaryTree}  +  ${r.secondaryTree}`
-    document.getElementById('build-rune-stats').textContent    = `${r.winRate}% WR · ${r.pickRate.toLocaleString()} games`
+    document.getElementById('build-rune-stats').textContent    =
+      r.winRate ? `${r.winRate}% WR · ${r.pickRate.toLocaleString()} games` : ''
   }
 
   // ── Items ─────────────────────────────────────────────────────────────────
+  const itemCol  = document.getElementById('build-item-col')
   const iconBox  = document.getElementById('build-item-icons')
   const nameBox  = document.getElementById('build-item-names')
   if (view.items?.ids?.length) {
+    itemCol.style.display = ''
+    document.getElementById('build-divider').style.display = ''
     const ver = buildData.ddVersion ?? '14.24.1'
     iconBox.innerHTML = view.items.ids.map((id, i) =>
       `<img class="item-icon"
@@ -223,8 +227,8 @@ function renderBuild() {
     ).join('')
     nameBox.textContent = view.items.names?.join('  ·  ') ?? ''
   } else {
-    iconBox.innerHTML   = '<span style="font-size:9px;color:var(--muted)">No item data</span>'
-    nameBox.textContent = ''
+    itemCol.style.display = 'none'
+    document.getElementById('build-divider').style.display = 'none'
   }
 
 }

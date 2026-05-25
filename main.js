@@ -1322,31 +1322,61 @@ function parseBuildResponse(raw, itemNames) {
   }
 }
 
-ipcMain.handle('get-build', async (_, { champName, position }) => {
-  if (!champName) return null
-  const lolName = champName.toLowerCase().replace(/[^a-z0-9]/g, '')
-  const laneMap = { TOP: 'top', JUNGLE: 'jungle', MIDDLE: 'mid', BOTTOM: 'adc', UTILITY: 'support' }
-  const lane    = laneMap[position] ?? 'mid'
+// ── LCU recommended rune pages ────────────────────────────────────────────────
+// The League client has built-in recommended rune pages for every champion.
+// Accessible via LCU — no internet, no scraping, always current patch.
+ipcMain.handle('get-build', async (_, { champName, champId, position }) => {
+  if (!lcuPort || !lcuPass) return { error: 'League client not detected' }
+  if (!champId || !champName)  return { error: 'No champion selected' }
 
-  const itemNames = await getItemNames()
-
-  // op.gg champion build page — CDP intercepts the API call the page makes
-  const champPageUrl = `https://www.op.gg/champions/${lolName}/${lane}/build?region=global&tier=platinum_plus`
-  console.log('[build] loading op.gg page:', champPageUrl)
+  const posMap = { TOP: 'TOP', JUNGLE: 'JUNGLE', MIDDLE: 'MID', BOTTOM: 'BOTTOM', UTILITY: 'UTILITY' }
+  const pos    = posMap[position] ?? 'MID'
+  const mapId  = 11   // Summoner's Rift
 
   try {
-    const { url, data } = await fetchBuildViaCDP(champPageUrl, 'op.gg')
-    console.log('[build] intercepted from:', url)
+    // LCU endpoint: recommended rune pages for champion + position + map
+    const pages = await fetchLCU(
+      `/lol-perks/v1/recommended-pages/position/${pos}/${champId}/${mapId}/CLASSIC`
+    )
+    console.log('[build] LCU recommended pages:', pages?.length, 'for', champName, pos)
 
-    const build = parseOpggResponse(data, itemNames)
-    if (build.mostUsed.runes || build.mostUsed.items) {
-      console.log('[build] OK — keystone:', build.mostUsed.runes?.keystone)
-      return build
+    if (!Array.isArray(pages) || pages.length === 0)
+      return { error: 'No recommended pages from client' }
+
+    const ver = ddVersion ?? '14.24.1'
+
+    function fmtPage(p) {
+      if (!p) return null
+      const ids     = p.selectedPerkIds ?? []
+      const primary = p.primaryStyleId  ?? getStyleId(ids[0])
+      const sub     = p.subStyleId      ?? getStyleId(ids[4])
+      const icon    = KEYSTONE_ICONS[ids[0]]
+      return {
+        ids,
+        primaryStyleId: primary,
+        subStyleId:     sub,
+        keystone:       KEYSTONE_NAMES[ids[0]] ?? `Perk ${ids[0]}`,
+        keystoneIcon:   icon ? PERK_IMG_BASE + icon : null,
+        primaryTree:    TREE_NAMES[primary] ?? 'Unknown',
+        secondaryTree:  TREE_NAMES[sub]     ?? 'Unknown',
+        pickRate:       0,
+        winRate:        0,
+      }
     }
-    console.log('[build] parsed but empty')
-    return { error: 'No build data found for ' + champName }
+
+    // Use first page as "Most Played", second (if different) as "Highest WR"
+    const p1 = fmtPage(pages[0])
+    const p2 = pages.length > 1 ? fmtPage(pages[1]) : p1
+
+    return {
+      mostUsed: { runes: p1, items: null },
+      mostWon:  { runes: p2, items: null },
+      totalGames: 0,
+      patch: '',
+      ddVersion: ver,
+    }
   } catch (e) {
-    console.log('[build] failed:', e.message)
+    console.error('[build] LCU recommended pages failed:', e.message)
     return { error: e.message }
   }
 })

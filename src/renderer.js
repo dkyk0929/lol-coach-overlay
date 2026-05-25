@@ -280,6 +280,7 @@ window.lolCoach.onGameData((data) => {
   state.kills   = kills
   state.deaths  = deaths
   state.assists = assists
+  state.level   = level
   if (me?.championName) state.myChampion = me.championName
   if (me?.position)     state.myPosition = me.position
 
@@ -909,13 +910,25 @@ async function requestAICoaching(trigger) {
       : `Dragon: spawns in ${Math.ceil(dragonLeft)}s`)
   }
 
+  // Find lane opponent for accurate level/CS comparison
+  const me       = state.allPlayers.find(p => matchName(p.summonerName, state.activeName))
+  const opponent = state.allPlayers.find(p =>
+    p.team !== me?.team &&
+    p.position === state.myPosition &&
+    p.position !== 'JUNGLE'
+  )
+  const oppLvl = opponent?.level ?? '?'
+  const oppCS  = opponent?.scores?.creepScore ?? '?'
+  const myLvl  = state.level ?? '?'
+
   const lines = [
     `My champion: ${state.myChampion ?? '?'}${state.isARAM ? ' (ARAM)' : ` (${state.myPosition ?? '?'})`} — ${phase} game (${fmtTime(state.gameTime)})`,
     champKit ? `Current kit (live patch): ${champKit}` : '',
     `Ally team:  ${state.allyTeam.join(', ') || 'unknown'}`,
     `Enemy team: ${state.enemyTeam.join(', ') || 'unknown'}`,
     scoutCtx ?? '',
-    `KDA: ${state.kills}/${state.deaths}/${state.assists} | CS: ${state.cs}`,
+    `KDA: ${state.kills}/${state.deaths}/${state.assists} | Level: ${myLvl} | CS: ${state.cs}`,
+    opponent ? `Lane opponent (${opponent.championName}): Level ${oppLvl} | CS ${oppCS}` : '',
     ...(!state.isARAM ? [
       `Drakes: Ally ${state.allyDrakes} · Enemy ${state.enemyDrakes}`,
       `Enemy JG: ${j.champion ?? '?'} — ${jgStatus}`,

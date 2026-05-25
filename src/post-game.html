@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'">
   <title>Post Game</title>
   <link rel="stylesheet" href="post-game.css">
 </head>
@@ -22,6 +22,11 @@
 
   <div id="key-events">
     <span id="events-label"></span>
+  </div>
+
+  <div id="coffee-bar">
+    <span id="coffee-text">enjoying the coach?</span>
+    <a id="coffee-link" href="#">☕ buy me a coffee</a>
   </div>
 
 </div>

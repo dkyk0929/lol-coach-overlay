@@ -913,6 +913,7 @@ ipcMain.on('dismiss-center-notif', () => {
 
 ipcMain.on('show-post-game',   (_, data) => createPostGameWindow(data))
 ipcMain.on('close-post-game',  () => { if (postGameWindow && !postGameWindow.isDestroyed()) postGameWindow.close() })
+ipcMain.on('open-coffee',      () => shell.openExternal('https://buymeacoffee.com/dkyk'))
 ipcMain.on('open-recent-games', () => createRecentGamesWindow())
 ipcMain.on('open-url',          (_, url) => shell.openExternal(url))
 

@@ -1,5 +1,10 @@
 document.getElementById('btn-close').addEventListener('click', () => window.postGame.close())
 
+document.getElementById('coffee-link').addEventListener('click', (e) => {
+  e.preventDefault()
+  window.postGame.openCoffee()
+})
+
 window.postGame.onData(async (d) => {
   renderHeader(d)
   renderEvents(d)

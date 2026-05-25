@@ -5,4 +5,5 @@ contextBridge.exposeInMainWorld('postGame', {
   aiAnalysis:  (prompt) => ipcRenderer.invoke('ai-postgame', prompt),
   close:       () => ipcRenderer.send('close-post-game'),
   saveLog:     (entry) => ipcRenderer.send('save-battle-log', entry),
+  openCoffee:  () => ipcRenderer.send('open-coffee'),
 })

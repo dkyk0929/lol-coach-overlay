@@ -164,6 +164,8 @@ async function maybeRequestBuild({ myLocked, position }) {
       setBuildStatus(`Failed: ${data.error}`)
     } else if (data?.mostUsed) {
       buildData = data
+      const sourceLabel = data.source === 'community' ? 'LOLALYTICS' : 'CLIENT RECOMMENDED'
+      document.getElementById('build-source').textContent = `RUNES  ·  ${sourceLabel}`
       renderBuild()
     } else {
       setBuildStatus('No rune data from client')

@@ -1088,23 +1088,43 @@ function fetchBuildViaCDP(champPageUrl, hostFilter) {
 
     win.webContents.debugger.sendCommand('Network.enable')
 
+    // Track all requestIds so we can retry getResponseBody on loadingFinished
+    const pendingRequests = new Map()
+
     win.webContents.debugger.on('message', async (_, method, params) => {
-      if (method !== 'Network.responseReceived') return
-      if (params.response.status !== 200) return
+      if (method === 'Network.responseReceived') {
+        if (params.response.status !== 200) return
+        const url = params.response.url
+        if (!url.includes(hostFilter)) return
+        // Skip obvious non-data responses
+        if (url.match(/\.(js|css|png|jpg|gif|svg|woff|ico)(\?|$)/i)) return
+        console.log('[build] tracking response:', url)
+        pendingRequests.set(params.requestId, url)
+        // Try immediately (body might already be available)
+        tryGetBody(params.requestId, url)
+      }
 
-      const url = params.response.url
-      const ct  = (params.response.headers?.['content-type'] ?? '').toLowerCase()
-      if (!url.includes(hostFilter)) return
-      if (!ct.includes('json') && !ct.includes('text/plain')) return
+      if (method === 'Network.loadingFinished') {
+        const url = pendingRequests.get(params.requestId)
+        if (url) tryGetBody(params.requestId, url)
+      }
+    })
 
-      console.log('[build] CDP intercepted:', url)
+    async function tryGetBody(requestId, url) {
+      if (done) return
       try {
-        const body   = await win.webContents.debugger.sendCommand('Network.getResponseBody', { requestId: params.requestId })
+        const body   = await win.webContents.debugger.sendCommand('Network.getResponseBody', { requestId })
+        if (!body?.body || body.body.length < 50) return
         const parsed = JSON.parse(body.body)
+        // Check it has champion build data — try op.gg keys and generic keys
+        const keys   = Object.keys(parsed?.data?.[0] ?? parsed?.data ?? parsed ?? {})
+        const isData = keys.some(k => ['rune_pages','runes','core_items','items','play_count','win_rate','perks'].includes(k))
+        if (!isData) { console.log('[build] skipping (no build keys):', url, keys.join(',')); return }
+        console.log('[build] found build data at:', url)
         clearTimeout(timer)
         finish(() => { try { win.destroy() } catch {}; resolve({ url, data: parsed }) })
-      } catch (e) { /* body not ready yet */ }
-    })
+      } catch { /* not ready or not JSON */ }
+    }
 
     win.loadURL(champPageUrl)
     win.webContents.on('did-fail-load', (_, code, _desc, _url, isMainFrame) => {

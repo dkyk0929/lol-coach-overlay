@@ -43,57 +43,20 @@ const POS_SLUG = { TOP:'top', JUNGLE:'jungle', MIDDLE:'mid', BOTTOM:'adc', UTILI
 
 const champSlug = (name) => name.toLowerCase().replace(/[^a-z]/g, '')
 
-const CHAMPIONS = [
-  // ADC
-  { name:'Jinx',        positions:['BOTTOM'] },
-  { name:'Caitlyn',     positions:['BOTTOM'] },
-  { name:'Jhin',        positions:['BOTTOM'] },
-  { name:'Ashe',        positions:['BOTTOM'] },
-  { name:'Ezreal',      positions:['BOTTOM'] },
-  { name:'KaiSa',       positions:['BOTTOM'] },
-  { name:'MissFortune', positions:['BOTTOM'] },
-  { name:'Sivir',       positions:['BOTTOM'] },
-  { name:'Tristana',    positions:['BOTTOM'] },
-  { name:'Vayne',       positions:['BOTTOM'] },
-  { name:'Lucian',      positions:['BOTTOM'] },
-  // Support
-  { name:'Thresh',      positions:['UTILITY'] },
-  { name:'Nautilus',    positions:['UTILITY'] },
-  { name:'Leona',       positions:['UTILITY'] },
-  { name:'Blitzcrank',  positions:['UTILITY'] },
-  { name:'Lulu',        positions:['UTILITY'] },
-  { name:'Soraka',      positions:['UTILITY'] },
-  { name:'Nami',        positions:['UTILITY'] },
-  { name:'Janna',       positions:['UTILITY'] },
-  // Jungle
-  { name:'Vi',          positions:['JUNGLE'] },
-  { name:'Warwick',     positions:['JUNGLE'] },
-  { name:'Amumu',       positions:['JUNGLE'] },
-  { name:'Hecarim',     positions:['JUNGLE'] },
-  { name:'LeeSin',      positions:['JUNGLE'] },
-  { name:'Kayn',        positions:['JUNGLE'] },
-  { name:'Graves',      positions:['JUNGLE'] },
-  { name:'Viego',       positions:['JUNGLE'] },
-  // Mid
-  { name:'Ahri',        positions:['MIDDLE'] },
-  { name:'Zed',         positions:['MIDDLE'] },
-  { name:'Viktor',      positions:['MIDDLE'] },
-  { name:'LeBlanc',     positions:['MIDDLE'] },
-  { name:'Syndra',      positions:['MIDDLE'] },
-  { name:'Yasuo',       positions:['MIDDLE'] },
-  { name:'Veigar',      positions:['MIDDLE'] },
-  { name:'Lux',         positions:['MIDDLE'] },
-  // Top
-  { name:'Darius',      positions:['TOP'] },
-  { name:'Garen',       positions:['TOP'] },
-  { name:'Aatrox',      positions:['TOP'] },
-  { name:'Malphite',    positions:['TOP'] },
-  { name:'Sett',        positions:['TOP'] },
-  { name:'Camille',     positions:['TOP'] },
-  { name:'Renekton',    positions:['TOP'] },
-  { name:'Jax',         positions:['TOP'] },
-  { name:'Fiora',       positions:['TOP'] },
-]
+// Lolalytics position slugs that actually have data for a given role
+const ALL_POSITIONS = ['TOP', 'JUNGLE', 'MIDDLE', 'BOTTOM', 'UTILITY']
+
+// Fetch all champion names from Data Dragon (always current patch, all 160+ champs)
+async function getAllChampions() {
+  const versionsRes = await fetch('https://ddragon.leagueoflegends.com/api/versions.json')
+  const versions    = await versionsRes.json()
+  const ver         = versions[0]
+  const dataRes     = await fetch(`https://ddragon.leagueoflegends.com/cdn/${ver}/data/en_US/champion.json`)
+  const data        = await dataRes.json()
+  // data.data keys are internal names like "AurelionSol", "MonkeyKing" (Wukong), etc.
+  // .name is the display name. We use the key (internal) for the slug since it matches Lolalytics.
+  return Object.values(data.data).map(c => c.name)  // display names, e.g. "Aurelion Sol", "Wukong"
+}
 
 const sleep = (ms) => new Promise(r => setTimeout(r, ms))
 
@@ -218,10 +181,15 @@ async function main() {
   const champions = existing.champions ?? {}
   let updated = 0, skipped = 0
 
-  for (const { name, positions } of CHAMPIONS) {
+  console.log('Fetching champion list from Data Dragon…')
+  const allChampNames = await getAllChampions()
+  console.log(`Found ${allChampNames.length} champions\n`)
+
+  for (const name of allChampNames) {
     const key = name.toLowerCase()
     if (!champions[key]) champions[key] = {}
-    for (const pos of positions) {
+
+    for (const pos of ALL_POSITIONS) {
       console.log(`Fetching ${name} (${pos})…`)
       const result = await fetchChampBuild(name, pos)
       if (result) {
@@ -231,7 +199,7 @@ async function main() {
       } else {
         skipped++
       }
-      await sleep(1500)
+      await sleep(1200)
     }
   }
 

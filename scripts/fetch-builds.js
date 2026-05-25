@@ -163,9 +163,14 @@ async function fetchChampBuild(page, name, position) {
     page.on('response', handler)
 
     try {
-      await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 18000 })
-      // Wait a bit for any async data fetch to complete
-      await new Promise(r => setTimeout(r, 4000))
+      await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 25000 })
+      // If Cloudflare shows "Just a moment..." wait for it to solve and redirect
+      await page.waitForFunction(
+        () => document.title !== 'Just a moment...' && document.title.length > 0,
+        { timeout: 12000 }
+      ).catch(() => {})
+      // Extra pause for the real page's async data calls to fire
+      await new Promise(r => setTimeout(r, 3000))
     } catch (e) {
       // navigation error — let the timeout fire or data already resolved
     }

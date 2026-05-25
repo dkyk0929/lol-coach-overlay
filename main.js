@@ -264,27 +264,6 @@ let lastCSKey     = null   // detect meaningful champ-select changes
 let ddVersion     = null   // latest Data Dragon version (set when champ map loads)
 let itemNameCache = null   // { itemId: itemName }
 
-// ── GitHub CDN build cache ────────────────────────────────────────────────────
-const GH_BUILDS_URL = 'https://raw.githubusercontent.com/dkyk0929/lol-coach-overlay/master/builds.json'
-let ghBuildsCache     = null
-let ghBuildsCacheTime = 0
-
-async function fetchGHBuilds() {
-  const now = Date.now()
-  if (ghBuildsCache && (now - ghBuildsCacheTime < 60 * 60 * 1000)) return ghBuildsCache
-  try {
-    const data = await fetchJSON(GH_BUILDS_URL)
-    if (data?.champions) {
-      ghBuildsCache     = data
-      ghBuildsCacheTime = now
-      console.log('[gh-builds] Loaded', Object.keys(data.champions).length, 'champions, patch:', data._meta?.patch)
-    }
-    return ghBuildsCache
-  } catch (e) {
-    console.warn('[gh-builds] Fetch failed:', e.message)
-    return ghBuildsCache  // return stale cache if any
-  }
-}
 
 // ── Game scout state ──────────────────────────────────────────────────────────
 let gameScoutShown  = false
@@ -1344,35 +1323,13 @@ function parseBuildResponse(raw, itemNames) {
   }
 }
 
-// ── Build data: GitHub CDN (community meta) → LCU fallback ───────────────────
+// ── Build data: LCU recommended pages ────────────────────────────────────────
 ipcMain.handle('get-build', async (_, { champName, champId, position }) => {
   if (!champId || !champName) return { error: 'No champion selected' }
 
   const posMap = { TOP: 'TOP', JUNGLE: 'JUNGLE', MIDDLE: 'MIDDLE', BOTTOM: 'BOTTOM', UTILITY: 'UTILITY' }
   const pos    = posMap[position] ?? 'MIDDLE'
   const ver    = ddVersion ?? '14.24.1'
-
-  // 1. Try GitHub CDN (community meta builds, updated daily by GitHub Action)
-  try {
-    const ghData = await fetchGHBuilds()
-    const key    = champName.toLowerCase()
-    const entry  = ghData?.champions?.[key]?.[pos]
-    if (entry?.mostUsed?.runes) {
-      console.log('[build] GitHub CDN hit:', champName, pos)
-      return {
-        mostUsed:   entry.mostUsed,
-        mostWon:    entry.mostWon ?? entry.mostUsed,
-        totalGames: 0,
-        patch:      ghData._meta?.patch ?? '',
-        ddVersion:  entry.ddVersion ?? ver,
-        source:     'community',
-      }
-    }
-  } catch (e) {
-    console.warn('[build] GitHub CDN error:', e.message)
-  }
-
-  // 2. Fall back to LCU recommended pages (Riot's built-in suggestions)
   if (!lcuPort || !lcuPass) return { error: 'League client not detected' }
 
   const mapId = 11

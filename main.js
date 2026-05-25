@@ -1063,10 +1063,10 @@ async function getItemNames() {
   return itemNameCache
 }
 
-// Navigate to a Lolalytics champion build page in a hidden BrowserWindow,
-// then intercept the API JSON response using Chrome DevTools Protocol.
-// The page's own JS makes the authenticated request — we just eavesdrop on it.
-function fetchBuildViaCDP(champPageUrl) {
+// Open a hidden BrowserWindow, navigate to a stats page, intercept the API
+// response via Chrome DevTools Protocol. The page's own JS does the request
+// with proper auth/cookies — we eavesdrop on the response.
+function fetchBuildViaCDP(champPageUrl, hostFilter) {
   return new Promise((resolve, reject) => {
     let done = false
     const finish = (fn) => { if (done) return; done = true; fn() }
@@ -1077,15 +1077,13 @@ function fetchBuildViaCDP(champPageUrl) {
     })
 
     const timer = setTimeout(() => {
-      finish(() => { try { win.destroy() } catch {} reject(new Error('timeout after 25s')) })
-    }, 25000)
+      finish(() => { try { win.destroy() } catch {} reject(new Error('timeout after 30s')) })
+    }, 30000)
 
     try { win.webContents.debugger.attach('1.3') }
     catch (e) {
-      clearTimeout(timer)
-      win.destroy()
-      reject(new Error('debugger attach: ' + e.message))
-      return
+      clearTimeout(timer); win.destroy()
+      reject(new Error('debugger: ' + e.message)); return
     }
 
     win.webContents.debugger.sendCommand('Network.enable')
@@ -1095,45 +1093,93 @@ function fetchBuildViaCDP(champPageUrl) {
       if (params.response.status !== 200) return
 
       const url = params.response.url
-      const ct  = params.response.headers?.['content-type'] ?? ''
-
-      // Catch any JSON response from lolalytics domains that looks like build data
-      const isLolalyticsHost = url.includes('lolalytics.com')
-      const isJSON = ct.includes('application/json') || ct.includes('text/plain')
-      const isPage = url.includes('.html') || url.endsWith('/') || !url.includes('.')
-      if (!isLolalyticsHost || !isJSON || isPage) return
+      const ct  = (params.response.headers?.['content-type'] ?? '').toLowerCase()
+      if (!url.includes(hostFilter)) return
+      if (!ct.includes('json') && !ct.includes('text/plain')) return
 
       console.log('[build] CDP intercepted:', url)
-
       try {
-        const body = await win.webContents.debugger.sendCommand('Network.getResponseBody', {
-          requestId: params.requestId,
-        })
+        const body   = await win.webContents.debugger.sendCommand('Network.getResponseBody', { requestId: params.requestId })
         const parsed = JSON.parse(body.body)
-        // Make sure it's champion data (has runes or items keys), not some other API call
-        const keys = Object.keys(parsed)
-        const looksLikeBuild = keys.some(k => ['runes','items','core_items','header','perks'].includes(k))
-        if (!looksLikeBuild) { console.log('[build] skipping non-build response, keys:', keys.join(',')); return }
-
         clearTimeout(timer)
-        finish(() => {
-          try { win.destroy() } catch {}
-          resolve(parsed)
-        })
-      } catch (e) { console.log('[build] CDP body error:', e.message) }
+        finish(() => { try { win.destroy() } catch {}; resolve({ url, data: parsed }) })
+      } catch (e) { /* body not ready yet */ }
     })
 
     win.loadURL(champPageUrl)
-
-    // Only treat it as a fatal failure if the MAIN frame fails with a real error.
-    // ERR_ABORTED (-3) is normal during redirects — ignore it.
-    win.webContents.on('did-fail-load', (_, code, desc, _url, isMainFrame) => {
-      if (!isMainFrame) return          // sub-frame / resource failure — ignore
-      if (code === -3) return           // ERR_ABORTED — redirect in progress, ignore
+    win.webContents.on('did-fail-load', (_, code, _desc, _url, isMainFrame) => {
+      if (!isMainFrame || code === -3) return
       clearTimeout(timer)
-      finish(() => { try { win.destroy() } catch {}; reject(new Error(`load failed (${code}): ${desc}`)) })
+      finish(() => { try { win.destroy() } catch {}; reject(new Error(`load failed (${code})`)) })
     })
   })
+}
+
+// ── op.gg build parser ────────────────────────────────────────────────────────
+function parseOpggResponse(raw, itemNames) {
+  // op.gg wraps data in { data: [...] } where first element is the champion
+  const champData = raw?.data?.[0] ?? raw?.data ?? raw
+  console.log('[build:opgg] keys:', Object.keys(champData ?? {}).join(', '))
+
+  // ── Runes ──
+  const runePages = champData?.rune_pages ?? champData?.runes ?? champData?.rune ?? []
+  const runeList  = (Array.isArray(runePages) ? runePages : Object.values(runePages))
+    .filter(r => r?.rune_ids?.length >= 6 || r?.ids?.length >= 6)
+    .map(r => {
+      const ids = r.rune_ids ?? r.ids
+      return {
+        ids,
+        primaryStyleId: r.primary_page_id ?? getStyleId(ids[0]),
+        subStyleId:     r.secondary_page_id ?? getStyleId(ids[4]),
+        n:   r.play_count ?? r.games ?? r.n ?? 0,
+        wr:  r.win_rate   ?? r.winrate ?? (r.n > 0 ? (r.win / r.n) * 100 : 0),
+      }
+    })
+
+  const byUsage   = [...runeList].sort((a, b) => b.n  - a.n)
+  const byWinRate = [...runeList].sort((a, b) => b.wr - a.wr)
+
+  // ── Items ──
+  const coreItems = champData?.core_items ?? champData?.items ?? champData?.item ?? []
+  const itemList  = (Array.isArray(coreItems) ? coreItems : Object.values(coreItems))
+    .filter(i => (i?.ids ?? i?.item_ids)?.length >= 2)
+    .map(i => {
+      const ids = (i.ids ?? i.item_ids ?? []).slice(0, 3)
+      return {
+        ids,
+        names: ids.map(id => itemNames[String(id)] ?? `#${id}`),
+        n:  i.play_count ?? i.games ?? i.n ?? 0,
+        wr: i.win_rate   ?? i.winrate ?? 0,
+      }
+    })
+
+  const itemsByUsage = [...itemList].sort((a, b) => b.n  - a.n)
+  const itemsByWin   = [...itemList].sort((a, b) => b.wr - a.wr)
+
+  function fmtRune(r) {
+    if (!r) return null
+    const iconPath = KEYSTONE_ICONS[r.ids[0]]
+    return {
+      ids:            r.ids,
+      primaryStyleId: r.primaryStyleId,
+      subStyleId:     r.subStyleId,
+      keystone:       KEYSTONE_NAMES[r.ids[0]] ?? `Perk ${r.ids[0]}`,
+      keystoneIcon:   iconPath ? PERK_IMG_BASE + iconPath : null,
+      primaryTree:    TREE_NAMES[r.primaryStyleId]  ?? 'Unknown',
+      secondaryTree:  TREE_NAMES[r.subStyleId] ?? 'Unknown',
+      pickRate:       r.n,
+      winRate:        Math.round(r.wr * 10) / 10,
+    }
+  }
+
+  const ver = ddVersion ?? '14.24.1'
+  return {
+    mostUsed: { runes: fmtRune(byUsage[0]),   items: itemsByUsage[0] ?? null },
+    mostWon:  { runes: fmtRune(byWinRate[0]),  items: itemsByWin[0]  ?? null },
+    totalGames: champData?.total_play_count ?? 0,
+    patch:      champData?.version ?? '',
+    ddVersion:  ver,
+  }
 }
 
 function getStyleId(perkId) {
@@ -1259,25 +1305,25 @@ function parseBuildResponse(raw, itemNames) {
 ipcMain.handle('get-build', async (_, { champName, position }) => {
   if (!champName) return null
   const lolName = champName.toLowerCase().replace(/[^a-z0-9]/g, '')
-  const laneMap = { TOP: 'top', JUNGLE: 'jungle', MIDDLE: 'mid', BOTTOM: 'bot', UTILITY: 'support' }
+  const laneMap = { TOP: 'top', JUNGLE: 'jungle', MIDDLE: 'mid', BOTTOM: 'adc', UTILITY: 'support' }
   const lane    = laneMap[position] ?? 'mid'
 
   const itemNames = await getItemNames()
 
-  // Navigate to the real Lolalytics champion build page.
-  // CDP intercepts the JSON the page fetches — bypasses all bot detection.
-  const champPageUrl = `https://lolalytics.com/lol/${lolName}/${lane}/build/`
-  console.log('[build] loading page:', champPageUrl)
+  // op.gg champion build page — CDP intercepts the API call the page makes
+  const champPageUrl = `https://www.op.gg/champions/${lolName}/${lane}/build?region=global&tier=platinum_plus`
+  console.log('[build] loading op.gg page:', champPageUrl)
 
   try {
-    const raw   = await fetchBuildViaCDP(champPageUrl)
-    console.log('[build] CDP intercepted — keys:', Object.keys(raw).slice(0, 10).join(', '))
-    const build = parseBuildResponse(raw, itemNames)
+    const { url, data } = await fetchBuildViaCDP(champPageUrl, 'op.gg')
+    console.log('[build] intercepted from:', url)
+
+    const build = parseOpggResponse(data, itemNames)
     if (build.mostUsed.runes || build.mostUsed.items) {
       console.log('[build] OK — keystone:', build.mostUsed.runes?.keystone)
       return build
     }
-    console.log('[build] parsed but empty — raw keys:', Object.keys(raw).join(', '))
+    console.log('[build] parsed but empty')
     return { error: 'No build data found for ' + champName }
   } catch (e) {
     console.log('[build] failed:', e.message)

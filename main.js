@@ -1329,15 +1329,23 @@ ipcMain.handle('get-build', async (_, { champName, champId, position }) => {
   if (!lcuPort || !lcuPass) return { error: 'League client not detected' }
   if (!champId || !champName)  return { error: 'No champion selected' }
 
-  const posMap = { TOP: 'TOP', JUNGLE: 'JUNGLE', MIDDLE: 'MID', BOTTOM: 'BOTTOM', UTILITY: 'UTILITY' }
-  const pos    = posMap[position] ?? 'MID'
+  const posMap = { TOP: 'TOP', JUNGLE: 'JUNGLE', MIDDLE: 'MIDDLE', BOTTOM: 'BOTTOM', UTILITY: 'UTILITY' }
+  const pos    = posMap[position] ?? 'MIDDLE'
   const mapId  = 11   // Summoner's Rift
 
   try {
-    // LCU endpoint: recommended rune pages for champion + position + map
-    const pages = await fetchLCU(
-      `/lol-perks/v1/recommended-pages/position/${pos}/${champId}/${mapId}/CLASSIC`
-    )
+    // Try specific endpoint first, fall back to generic one
+    let pages = null
+    for (const path of [
+      `/lol-perks/v1/recommended-pages/position/${pos}/${champId}/${mapId}/CLASSIC`,
+      `/lol-perks/v1/recommended-pages/position/${pos}/${champId}/${mapId}/PRACTICETOOL`,
+      `/lol-perks/v1/recommended-pages`,
+    ]) {
+      try {
+        const res = await fetchLCU(path)
+        if (Array.isArray(res) && res.length > 0) { pages = res; break }
+      } catch { /* try next */ }
+    }
     console.log('[build] LCU recommended pages:', pages?.length, 'for', champName, pos)
 
     if (!Array.isArray(pages) || pages.length === 0)

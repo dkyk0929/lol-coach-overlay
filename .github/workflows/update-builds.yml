@@ -18,6 +18,10 @@ jobs:
         with:
           node-version: '20'
 
+      - name: Install Puppeteer
+        run: npm install puppeteer
+        working-directory: scripts
+
       - name: Fetch build data
         run: node scripts/fetch-builds.js
 

@@ -1063,10 +1063,10 @@ async function getItemNames() {
   return itemNameCache
 }
 
-// Fetch JSON via a hidden BrowserWindow — runs as a real Chromium browser,
-// handles Cloudflare/bot challenges, carries cookies, indistinguishable from a user.
-// We intercept the XHR/fetch response before the page renders, then close the window.
-function fetchJSONBrowser(apiUrl) {
+// Navigate to a Lolalytics champion build page in a hidden BrowserWindow,
+// then intercept the API JSON response using Chrome DevTools Protocol.
+// The page's own JS makes the authenticated request — we just eavesdrop on it.
+function fetchBuildViaCDP(champPageUrl) {
   return new Promise((resolve, reject) => {
     let done = false
     const finish = (fn) => { if (done) return; done = true; fn() }
@@ -1077,45 +1077,57 @@ function fetchJSONBrowser(apiUrl) {
     })
 
     const timer = setTimeout(() => {
-      finish(() => { try { win.destroy() } catch {} reject(new Error('timeout after 15s')) })
-    }, 15000)
+      finish(() => { try { win.destroy() } catch {} reject(new Error('timeout after 25s')) })
+    }, 25000)
 
-    // Intercept the API response via webRequest — fires before the window renders anything
-    const filter = { urls: [apiUrl] }
-    win.webContents.session.webRequest.onCompleted(filter, (details) => {
-      // statusCode alone doesn't give us the body; use executeJavaScript to fetch instead
-    })
+    try { win.webContents.debugger.attach('1.3') }
+    catch (e) {
+      clearTimeout(timer)
+      win.destroy()
+      reject(new Error('debugger attach: ' + e.message))
+      return
+    }
 
-    // Load a blank page then run fetch() inside the real browser context
-    win.loadURL('https://lolalytics.com/')
-    win.webContents.once('did-finish-load', () => {
-      win.webContents.executeJavaScript(`
-        fetch(${JSON.stringify(apiUrl)}, {
-          headers: { 'Accept': 'application/json, */*' }
+    win.webContents.debugger.sendCommand('Network.enable')
+
+    win.webContents.debugger.on('message', async (_, method, params) => {
+      if (method !== 'Network.responseReceived') return
+      if (params.response.status !== 200) return
+
+      const url = params.response.url
+      const ct  = params.response.headers?.['content-type'] ?? ''
+
+      // Catch any JSON response from lolalytics domains that looks like build data
+      const isLolalyticsHost = url.includes('lolalytics.com')
+      const isJSON = ct.includes('application/json') || ct.includes('text/plain')
+      const isPage = url.includes('.html') || url.endsWith('/') || !url.includes('.')
+      if (!isLolalyticsHost || !isJSON || isPage) return
+
+      console.log('[build] CDP intercepted:', url)
+
+      try {
+        const body = await win.webContents.debugger.sendCommand('Network.getResponseBody', {
+          requestId: params.requestId,
         })
-        .then(r => { if (!r.ok) throw new Error('HTTP ' + r.status); return r.text() })
-        .then(t => t)
-        .catch(e => '__ERR__' + e.message)
-      `).then(result => {
+        const parsed = JSON.parse(body.body)
+        // Make sure it's champion data (has runes or items keys), not some other API call
+        const keys = Object.keys(parsed)
+        const looksLikeBuild = keys.some(k => ['runes','items','core_items','header','perks'].includes(k))
+        if (!looksLikeBuild) { console.log('[build] skipping non-build response, keys:', keys.join(',')); return }
+
         clearTimeout(timer)
         finish(() => {
           try { win.destroy() } catch {}
-          if (typeof result === 'string' && result.startsWith('__ERR__')) {
-            reject(new Error(result.slice(7)))
-          } else {
-            try { resolve(JSON.parse(result)) }
-            catch { reject(new Error(`JSON parse (got: ${String(result).slice(0, 80)})`)) }
-          }
+          resolve(parsed)
         })
-      }).catch(e => {
-        clearTimeout(timer)
-        finish(() => { try { win.destroy() } catch {}; reject(e) })
-      })
+      } catch (e) { console.log('[build] CDP body error:', e.message) }
     })
+
+    win.loadURL(champPageUrl)
 
     win.webContents.on('did-fail-load', (_, code, desc) => {
       clearTimeout(timer)
-      finish(() => { try { win.destroy() } catch {}; reject(new Error(`load failed: ${desc}`)) })
+      finish(() => { try { win.destroy() } catch {}; reject(new Error('load failed: ' + desc)) })
     })
   })
 }
@@ -1243,37 +1255,30 @@ function parseBuildResponse(raw, itemNames) {
 ipcMain.handle('get-build', async (_, { champName, position }) => {
   if (!champName) return null
   const lolName = champName.toLowerCase().replace(/[^a-z0-9]/g, '')
-  const champId = nameToId[champName.toLowerCase()]
-  const laneMap = { TOP: 'top', JUNGLE: 'jungle', MIDDLE: 'mid', BOTTOM: 'adc', UTILITY: 'support' }
+  const laneMap = { TOP: 'top', JUNGLE: 'jungle', MIDDLE: 'mid', BOTTOM: 'bot', UTILITY: 'support' }
   const lane    = laneMap[position] ?? 'mid'
 
   const itemNames = await getItemNames()
 
-  const urls = [
-    champId ? `https://a3.lolalytics.com/mega/?ep=champion&p=d&v=1&patch=&cid=${champId}&lane=${lane}&tier=platinum_plus&queue=420&region=all` : null,
-    `https://lolalytics.com/api/champion/?champ=${lolName}&patch=&tier=platinum_plus&region=all&queue=420&lane=${lane}`,
-  ].filter(Boolean)
+  // Navigate to the real Lolalytics champion build page.
+  // CDP intercepts the JSON the page fetches — bypasses all bot detection.
+  const champPageUrl = `https://lolalytics.com/lol/${lolName}/build/?tier=platinum_plus&queue=420&position=${lane}`
+  console.log('[build] loading page:', champPageUrl)
 
-  const errors = []
-  for (const url of urls) {
-    try {
-      console.log('[build] fetching:', url)
-      const raw   = await fetchJSONBrowser(url)
-      console.log('[build] keys:', Object.keys(raw).slice(0, 10).join(', '))
-      const build = parseBuildResponse(raw, itemNames)
-      if (build.mostUsed.runes || build.mostUsed.items) {
-        console.log('[build] OK — keystone:', build.mostUsed.runes?.keystone)
-        return build
-      }
-      console.log('[build] parsed but empty — raw keys were:', Object.keys(raw).join(', '))
-      errors.push('empty response')
-    } catch (e) {
-      console.log('[build] failed:', e.message)
-      errors.push(e.message)
+  try {
+    const raw   = await fetchBuildViaCDP(champPageUrl)
+    console.log('[build] CDP intercepted — keys:', Object.keys(raw).slice(0, 10).join(', '))
+    const build = parseBuildResponse(raw, itemNames)
+    if (build.mostUsed.runes || build.mostUsed.items) {
+      console.log('[build] OK — keystone:', build.mostUsed.runes?.keystone)
+      return build
     }
+    console.log('[build] parsed but empty — raw keys:', Object.keys(raw).join(', '))
+    return { error: 'No build data found for ' + champName }
+  } catch (e) {
+    console.log('[build] failed:', e.message)
+    return { error: e.message }
   }
-  // Return a special object so the UI can show the actual error
-  return { error: errors.join(' / ') }
 })
 
 // ── LCU rune writer ───────────────────────────────────────────────────────────

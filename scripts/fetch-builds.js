@@ -1,11 +1,10 @@
 // Runs in GitHub Actions (Node 20).
-// Uses Puppeteer (headless Chrome) to render Lolalytics pages so Cloudflare
-// bot protection is bypassed. Extracts __NEXT_DATA__ after page load.
-// Champions / positions that fail are skipped; the rest are still saved.
+// Uses Puppeteer to intercept Lolalytics' own internal API requests and
+// capture the JSON stats data directly — no HTML parsing needed.
 
 'use strict'
 const { readFileSync, writeFileSync } = require('fs')
-const path    = require('path')
+const path      = require('path')
 const puppeteer = require('puppeteer')
 
 const BUILDS_PATH = path.join(__dirname, '..', 'builds.json')
@@ -39,17 +38,17 @@ const KEYSTONE_ICONS = {
 }
 const PERK_IMG_BASE = 'https://ddragon.leagueoflegends.com/cdn/img/perk-images/Styles/'
 
-const POS_SLUG     = { TOP:'top', JUNGLE:'jungle', MIDDLE:'mid', BOTTOM:'adc', UTILITY:'support' }
+const POS_SLUG      = { TOP:'top', JUNGLE:'jungle', MIDDLE:'mid', BOTTOM:'adc', UTILITY:'support' }
 const ALL_POSITIONS = ['TOP', 'JUNGLE', 'MIDDLE', 'BOTTOM', 'UTILITY']
 const champSlug     = (name) => name.toLowerCase().replace(/[^a-z]/g, '')
 
 // ── Data Dragon champion list ────────────────────────────────────────────────
 async function getAllChampions() {
-  const vRes    = await fetch('https://ddragon.leagueoflegends.com/api/versions.json')
-  const ver     = (await vRes.json())[0]
-  const cRes    = await fetch(`https://ddragon.leagueoflegends.com/cdn/${ver}/data/en_US/champion.json`)
-  const cData   = await cRes.json()
-  return Object.values(cData.data).map(c => c.name)  // e.g. "Aurelion Sol", "Wukong"
+  const vRes  = await fetch('https://ddragon.leagueoflegends.com/api/versions.json')
+  const ver   = (await vRes.json())[0]
+  const cRes  = await fetch(`https://ddragon.leagueoflegends.com/cdn/${ver}/data/en_US/champion.json`)
+  const cData = await cRes.json()
+  return Object.values(cData.data).map(c => c.name)
 }
 
 // ── Rune / item parsers ──────────────────────────────────────────────────────
@@ -59,14 +58,13 @@ function parseRuneRow(r) {
   if (!ids.length) return null
   const primaryStyleId = r.primaryStyleId ?? 8000
   const subStyleId     = r.subStyleId     ?? 8200
-  const keystoneId     = ids[0]
   const rawWR          = r.wr ?? 0
-  const icon           = KEYSTONE_ICONS[keystoneId]
+  const icon           = KEYSTONE_ICONS[ids[0]]
   return {
     ids,
     primaryStyleId,
     subStyleId,
-    keystone:      KEYSTONE_NAMES[keystoneId] ?? `Perk ${keystoneId}`,
+    keystone:      KEYSTONE_NAMES[ids[0]] ?? `Perk ${ids[0]}`,
     keystoneIcon:  icon ? PERK_IMG_BASE + icon : null,
     primaryTree:   TREE_NAMES[primaryStyleId] ?? 'Unknown',
     secondaryTree: TREE_NAMES[subStyleId]     ?? 'Unknown',
@@ -75,90 +73,146 @@ function parseRuneRow(r) {
   }
 }
 
-function extractRunes(pageProps) {
-  for (const c of [
-    pageProps?.data?.runes?.items,
-    pageProps?.apiData?.runes,
-    pageProps?.apiData?.data?.runes?.items,
-    pageProps?.runesData,
-  ]) {
-    if (Array.isArray(c) && c.length > 0) return c
+// Try to find runes in any known shape of Lolalytics JSON payload
+function extractRunes(data) {
+  const candidates = [
+    data?.runes?.items,
+    data?.runes,
+    data?.data?.runes?.items,
+    data?.data?.runes,
+    data?.pageProps?.data?.runes?.items,
+    data?.props?.pageProps?.data?.runes?.items,
+  ]
+  for (const c of candidates) {
+    if (Array.isArray(c) && c.length > 0 && c[0]?.ids) return c
   }
   return null
 }
 
-function extractItems(pageProps) {
-  for (const raw of [
-    pageProps?.data?.items,
-    pageProps?.apiData?.items,
-    pageProps?.apiData?.data?.items,
-  ]) {
+function extractItems(data) {
+  const candidates = [
+    data?.items,
+    data?.data?.items,
+    data?.pageProps?.data?.items,
+    data?.props?.pageProps?.data?.items,
+  ]
+  for (const raw of candidates) {
     if (!raw) continue
     const core = Array.isArray(raw) ? raw : (raw.core ?? raw.coreItem ?? raw.items ?? null)
     if (Array.isArray(core) && core.length > 0) {
-      const ids   = core.slice(0, 3).map(x => (typeof x === 'object' ? x.id   : x)).filter(Boolean)
-      const names = core.slice(0, 3).map(x => (typeof x === 'object' ? (x.name ?? '') : '')).filter(Boolean)
+      const ids   = core.slice(0, 3).map(x => typeof x === 'object' ? x.id   : x).filter(Boolean)
+      const names = core.slice(0, 3).map(x => typeof x === 'object' ? (x.name ?? '') : '').filter(Boolean)
       if (ids.length) return { ids, names }
     }
   }
   return null
 }
 
-// ── Puppeteer page fetch ──────────────────────────────────────────────────────
+function buildResult(apiData) {
+  const runeRows = extractRunes(apiData)
+  if (!runeRows || runeRows.length === 0) return null
+
+  const byPick = [...runeRows].sort((a, b) => (b.n ?? 0) - (a.n ?? 0))
+  const byWR   = [...runeRows].sort((a, b) => {
+    const w = r => r.wr != null ? (r.wr < 1 ? r.wr * 100 : r.wr) : 0
+    return w(b) - w(a)
+  })
+  const mostUsedRunes = parseRuneRow(byPick[0])
+  const mostWonRunes  = parseRuneRow(byWR[0])
+  if (!mostUsedRunes) return null
+
+  return {
+    ddVersion: apiData?.patch ?? apiData?.ddVersion ?? '',
+    mostUsed:  { runes: mostUsedRunes, items: extractItems(apiData) },
+    mostWon:   { runes: mostWonRunes ?? mostUsedRunes, items: extractItems(apiData) },
+  }
+}
+
+// ── Per-page fetch with response interception ────────────────────────────────
 async function fetchChampBuild(page, name, position) {
   const url = `https://lolalytics.com/champion/${champSlug(name)}/${POS_SLUG[position]}/build/`
-  try {
-    await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 25000 })
-    // Small pause so Next.js hydration + any Cloudflare challenge completes
-    await new Promise(r => setTimeout(r, 2000))
 
-    const nextData = await page.evaluate(() => {
-      const el = document.getElementById('__NEXT_DATA__')
-      if (!el) return null
-      try { return JSON.parse(el.textContent) } catch { return null }
-    })
+  return new Promise(async (resolve) => {
+    let resolved = false
+    const done = (val) => { if (!resolved) { resolved = true; resolve(val) } }
 
-    if (!nextData) {
-      console.warn(`  [skip] ${name}/${position}: no __NEXT_DATA__`)
-      return null
+    // Timeout safety
+    const timer = setTimeout(() => done(null), 20000)
+
+    // Intercept all JSON responses from lolalytics.com
+    const handler = async (response) => {
+      try {
+        const respUrl = response.url()
+        if (!respUrl.includes('lolalytics.com')) return
+        const ct = response.headers()['content-type'] ?? ''
+        if (!ct.includes('json')) return
+
+        const json = await response.json().catch(() => null)
+        if (!json) return
+
+        const result = buildResult(json)
+        if (result) {
+          clearTimeout(timer)
+          page.off('response', handler)
+          done(result)
+        }
+      } catch { /* ignore */ }
+    }
+    page.on('response', handler)
+
+    try {
+      await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 18000 })
+      // Wait a bit for any async data fetch to complete
+      await new Promise(r => setTimeout(r, 4000))
+    } catch (e) {
+      // navigation error — let the timeout fire or data already resolved
     }
 
-    const pageProps = nextData?.props?.pageProps ?? nextData?.pageProps ?? {}
-    const runeRows  = extractRunes(pageProps)
+    // If response interception didn't fire, try extracting from page state
+    if (!resolved) {
+      page.off('response', handler)
+      const pageData = await page.evaluate(() => {
+        // Try common global state variables used by analytics sites
+        const candidates = [
+          window.__INITIAL_STATE__,
+          window.__APP_STATE__,
+          window.__REDUX_STATE__,
+          window.__DATA__,
+          window.__NUXT__,
+        ]
+        // Also try script tags with JSON content
+        for (const s of document.querySelectorAll('script[type="application/json"]')) {
+          try { candidates.push(JSON.parse(s.textContent)) } catch {}
+        }
+        // Debug: log page title + first script data keys
+        const title   = document.title
+        const scripts = [...document.querySelectorAll('script:not([src])')].map(s => s.textContent.slice(0,80)).filter(Boolean)
+        return { candidates: candidates.filter(Boolean), title, scriptCount: scripts.length, scripts: scripts.slice(0,3) }
+      }).catch(() => null)
 
-    if (!runeRows || runeRows.length === 0) {
-      // Log keys once per champion to debug structure if needed
-      if (position === 'TOP') {
-        console.warn(`  [debug] ${name}/${position}: no rune rows. keys: ${Object.keys(pageProps).slice(0,8).join(', ')}`)
+      if (pageData) {
+        // First run only: log debug info so we can see the page structure
+        if (name === 'Aatrox' && position === 'TOP') {
+          console.log(`\n[debug] Page title: "${pageData.title}"`)
+          console.log(`[debug] Script count: ${pageData.scriptCount}`)
+          console.log(`[debug] Script samples:`, JSON.stringify(pageData.scripts).slice(0, 300))
+        }
+        for (const c of pageData.candidates) {
+          const result = buildResult(c)
+          if (result) { clearTimeout(timer); done(result); return }
+        }
       }
-      return null
+
+      clearTimeout(timer)
+      done(null)
     }
-
-    const byPick = [...runeRows].sort((a, b) => (b.n ?? 0) - (a.n ?? 0))
-    const byWR   = [...runeRows].sort((a, b) => {
-      const w = r => r.wr != null ? (r.wr < 1 ? r.wr * 100 : r.wr) : 0
-      return w(b) - w(a)
-    })
-
-    const mostUsedRunes = parseRuneRow(byPick[0])
-    const mostWonRunes  = parseRuneRow(byWR[0])
-    if (!mostUsedRunes) return null
-
-    return {
-      ddVersion: pageProps?.ddVersion ?? pageProps?.patch ?? '',
-      mostUsed:  { runes: mostUsedRunes, items: extractItems(pageProps) },
-      mostWon:   { runes: mostWonRunes ?? mostUsedRunes, items: extractItems(pageProps) },
-    }
-  } catch (e) {
-    console.warn(`  [skip] ${name}/${position}: ${e.message}`)
-    return null
-  }
+  })
 }
 
 // ── Main ──────────────────────────────────────────────────────────────────────
 async function main() {
   let existing = { _meta: { updated: '', patch: '' }, champions: {} }
-  try { existing = JSON.parse(readFileSync(BUILDS_PATH, 'utf8')) } catch { /* start fresh */ }
+  try { existing = JSON.parse(readFileSync(BUILDS_PATH, 'utf8')) } catch {}
   const champions = existing.champions ?? {}
 
   console.log('Fetching champion list from Data Dragon…')
@@ -170,12 +224,9 @@ async function main() {
     args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage'],
   })
   const page = await browser.newPage()
-  await page.setUserAgent(
-    'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36'
-  )
+  await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36')
   await page.setExtraHTTPHeaders({ 'Accept-Language': 'en-US,en;q=0.9' })
 
-  // Warm up — visits homepage so Cloudflare sets its cookie before we scrape
   console.log('Warming up (Cloudflare cookie)…')
   await page.goto('https://lolalytics.com/', { waitUntil: 'domcontentloaded', timeout: 30000 })
   await new Promise(r => setTimeout(r, 3000))
@@ -200,7 +251,7 @@ async function main() {
       }
     }
 
-    // Save after every champion so partial progress is never lost
+    // Save after every champion so partial progress survives a crash
     const patch = Object.values(champions).flatMap(c => Object.values(c)).find(v => v.ddVersion)?.ddVersion ?? ''
     existing._meta = { updated: new Date().toISOString().slice(0, 10), patch }
     existing.champions = champions

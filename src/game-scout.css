@@ -1,33 +1,45 @@
 :root {
-  --gold:  #C89B3C;
-  --text:  #C8AA6E;
-  --muted: #4A5A6A;
-  --green: #1FD65F;
-  --teal:  #0BC4E3;
-  --red:   #FF3B3B;
-  --panel: rgba(2,8,16,0.94);
+  --gold: #f3c66f;
+  --gold-glow: rgba(243, 198, 111, 0.3);
+  --teal: #00dec9;
+  --teal-glow: rgba(0, 222, 201, 0.35);
+  --panel: rgba(10, 15, 26, 0.82);
+  --panel-bg: rgba(10, 15, 26, 0.82);
+  --border-color: rgba(243, 198, 111, 0.15);
+  --border-hover: rgba(243, 198, 111, 0.35);
+  --text-primary: #f0f3f8;
+  --text-muted: #8c96ab;
+  --text: var(--text-primary);
+  --muted: var(--text-muted);
+  --red: #ff4d6d;
+  --red-glow: rgba(255, 77, 109, 0.25);
+  --green: #2ecc71;
+  --green-glow: rgba(46, 204, 113, 0.25);
+  --font-sans: 'Outfit', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  --font-mono: 'JetBrains Mono', monospace;
 }
 
 * { margin:0; padding:0; box-sizing:border-box; }
 
 body {
-  font-family: 'Segoe UI', system-ui, monospace;
+  font-family: var(--font-sans);
   background: transparent;
-  color: var(--text);
+  color: var(--text-primary);
   user-select: none;
   overflow: hidden;
   height: 100vh;
 }
 
 #app {
-  background: var(--panel);
-  border: 1px solid rgba(200,155,60,0.22);
-  border-top: 2px solid rgba(200,155,60,0.75);
-  border-radius: 4px;
+  background: var(--panel-bg);
+  border: 1px solid var(--border-color);
+  border-top: 3px solid var(--gold);
+  box-shadow: 0 -2px 12px var(--gold-glow), 0 8px 32px rgba(0,0,0,0.5);
+  border-radius: 8px;
   height: 100vh;
   display: flex;
   flex-direction: column;
-  backdrop-filter: blur(10px);
+  backdrop-filter: blur(12px) saturate(160%);
 }
 
 /* ── Header ── */
@@ -36,12 +48,13 @@ body {
   align-items: center;
   justify-content: space-between;
   padding: 6px 14px 5px;
-  border-bottom: 1px solid rgba(200,155,60,0.10);
+  border-bottom: 1px solid var(--border-color);
   flex-shrink: 0;
   -webkit-app-region: drag;
   cursor: grab;
 }
 #header-label {
+  font-family: var(--font-sans);
   font-size: 10px;
   font-weight: 700;
   color: var(--gold);
@@ -50,17 +63,17 @@ body {
 #btn-close {
   background: none;
   border: 1px solid transparent;
-  color: var(--muted);
+  color: var(--text-muted);
   font-size: 12px;
   padding: 1px 7px;
   cursor: pointer;
-  border-radius: 3px;
-  font-family: system-ui;
+  border-radius: 4px;
+  font-family: var(--font-sans);
   flex-shrink: 0;
   transition: all 0.15s;
   -webkit-app-region: no-drag;
 }
-#btn-close:hover { border-color: rgba(255,59,59,0.5); color: var(--red); }
+#btn-close:hover { border-color: rgba(255, 77, 109, 0.5); color: var(--red); }
 
 /* ── Teams ── */
 #teams {
@@ -72,16 +85,17 @@ body {
 }
 .team-col { flex: 1; display: flex; flex-direction: column; gap: 3px; min-width: 0; }
 .team-header {
+  font-family: var(--font-sans);
   font-size: 7px;
   font-weight: 700;
   letter-spacing: 2px;
   text-transform: uppercase;
   margin-bottom: 5px;
 }
-.ally-header  { color: rgba(31,214,95,0.5); }
-.enemy-header { color: rgba(255,80,80,0.5); text-align: right; }
+.ally-header  { color: var(--green); opacity: 0.85; }
+.enemy-header { color: var(--red); opacity: 0.85; text-align: right; }
 
-#divider { width: 1px; background: rgba(200,155,60,0.10); margin: 0 2px; flex-shrink: 0; }
+#divider { width: 1px; background: var(--border-color); margin: 0 2px; flex-shrink: 0; }
 
 /* ── Player rows ── */
 .player-row {
@@ -96,22 +110,22 @@ body {
 .portrait {
   width: 38px;
   height: 38px;
-  border-radius: 4px;
-  border: 1px solid rgba(200,155,60,0.15);
+  border-radius: 6px;
+  border: 1px solid var(--border-color);
   object-fit: cover;
   flex-shrink: 0;
-  background: rgba(8,18,30,0.8);
+  background: rgba(10, 15, 26, 0.8);
 }
 .portrait-placeholder {
   width: 38px;
   height: 38px;
-  border-radius: 4px;
-  border: 1px solid rgba(200,155,60,0.08);
+  border-radius: 6px;
+  border: 1px solid rgba(243, 198, 111, 0.08);
   flex-shrink: 0;
-  background: rgba(8,18,30,0.5);
+  background: rgba(10, 15, 26, 0.5);
 }
-.portrait.me     { border-color: #C89B3C; box-shadow: 0 0 8px rgba(200,155,60,0.3); }
-.portrait.enemy  { border-color: rgba(255,60,60,0.2); }
+.portrait.me     { border-color: var(--gold); box-shadow: 0 0 8px var(--gold-glow); }
+.portrait.enemy  { border-color: rgba(255, 77, 109, 0.2); }
 
 /* Info block */
 .player-info {
@@ -133,48 +147,50 @@ body {
 .enemy-row .name-line { flex-direction: row-reverse; }
 
 .champ-name {
+  font-family: var(--font-sans);
   font-size: 11px;
   font-weight: 700;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  color: var(--text);
+  color: var(--text-primary);
 }
 .champ-name.me { color: var(--gold); }
 
 /* Position pill */
 .pos-pill {
+  font-family: var(--font-mono);
   font-size: 7px;
   font-weight: 800;
   letter-spacing: 0.5px;
   padding: 1px 5px;
-  border-radius: 2px;
+  border-radius: 4px;
   flex-shrink: 0;
   line-height: 13px;
 }
 .pos-TOP { background: rgba(205,133,63,0.14); color: #CD853F; border: 1px solid rgba(205,133,63,0.28); }
-.pos-JG  { background: rgba(76,175,80,0.14);  color: #66BB6A; border: 1px solid rgba(76,175,80,0.28); }
+.pos-JG  { background: rgba(46, 204, 113, 0.14); color: var(--green); border: 1px solid var(--green-glow); }
 .pos-MID { background: rgba(206,147,216,0.12); color: #CE93D8; border: 1px solid rgba(206,147,216,0.24); }
 .pos-BOT { background: rgba(100,181,246,0.12); color: #64B5F6; border: 1px solid rgba(100,181,246,0.24); }
-.pos-SUP { background: rgba(255,213,79,0.12);  color: #FFD54F; border: 1px solid rgba(255,213,79,0.24); }
+.pos-SUP { background: rgba(243, 198, 111, 0.12); color: var(--gold); border: 1px solid var(--gold-glow); }
 
 /* Stats line */
 .stat-line {
   font-size: 9px;
-  color: var(--muted);
+  color: var(--text-muted);
   white-space: nowrap;
-  font-family: monospace;
+  font-family: var(--font-mono);
 }
-.stat-line.loading { color: rgba(74,90,106,0.45); letter-spacing: 2px; }
+.stat-line.loading { color: rgba(140, 150, 171, 0.45); letter-spacing: 2px; }
 
 /* Tier colors */
 .tier-challenger,
 .tier-grandmaster,
-.tier-master  { color: #FF7043; font-weight: 700; }
-.tier-diamond { color: #82B1FF; }
-.tier-emerald { color: #69F0AE; }
+.tier-master  { color: #FF7043; font-weight: 700; text-shadow: 0 0 8px rgba(255, 112, 67, 0.4); }
+.tier-diamond { color: #82B1FF; text-shadow: 0 0 6px rgba(130, 177, 255, 0.3); }
+.tier-emerald { color: #69F0AE; text-shadow: 0 0 6px rgba(105, 240, 174, 0.3); }
 .tier-platinum{ color: #4DD0E1; }
-.tier-gold    { color: #C89B3C; }
+.tier-gold    { color: var(--gold); }
 .tier-silver  { color: #90A4AE; }
 .tier-bronze  { color: #A1887F; }
 .tier-iron    { color: #546E7A; }

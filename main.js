@@ -2,6 +2,8 @@ const { app, BrowserWindow, ipcMain, screen, globalShortcut, shell, Tray, Menu, 
 const { uIOhook, UiohookKey } = require('uiohook-napi')
 
 app.commandLine.appendSwitch('autoplay-policy', 'no-user-gesture-required')
+app.commandLine.appendSwitch('disable-gpu-sandbox')
+app.commandLine.appendSwitch('disable-gpu-watchdog')
 const https = require('https')
 const path  = require('path')
 const fs    = require('fs')
@@ -414,7 +416,7 @@ async function loadChampionMap() {
       return
     }
   } catch (e) {
-    console.log('LCU champion map failed, trying Data Dragon:', e.message)
+    console.log('LCU client not detected (normal when League is closed). Using Data Dragon champion map fallback.')
   }
 
   // Fallback: Riot Data Dragon CDN

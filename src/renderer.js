@@ -144,6 +144,11 @@ function freshState() {
     aiMessageAt: -999,
     gameResult: null,
     alertLogFull: [],
+    targetCS: 7.0,
+    recentGameEvents: [],
+    roamAlerts: new Set(),
+    laneOpponentWasDead: false,
+    opponentPrevItems: [],
     jungler: {
       name: null, champion: null, level: 1,
       isDead: false, lastSeenTime: 0, lastSeenSide: null,
@@ -311,6 +316,15 @@ window.lolCoach.onGameData((data) => {
     checkAllinWindow(level, me, allPlayers, gameData.gameTime)
     updateObjectiveCountdown(gameData.gameTime)
 
+    const opponent = allPlayers.find(p =>
+      p.team !== me?.team &&
+      p.position === state.myPosition &&
+      p.position !== 'JUNGLE'
+    )
+    if (opponent) {
+      checkRoamWindows(me, opponent, gameData.gameTime)
+    }
+
     const pos = state.myPosition
     if (gameData.gameTime < 300 && pos !== 'UTILITY' && pos !== 'JUNGLE') updateEarlyFocus(gameData.gameTime, cs)
   }
@@ -441,7 +455,8 @@ function updateCS(gameTime, cs, me) {
 
   // Laners: existing delta vs pace
   if (gameTime > 90) {
-    const delta = cs - Math.floor((gameTime / 60) * 7)
+    const target = state.targetCS || 7.0
+    const delta = cs - Math.floor((gameTime / 60) * target)
     el.textContent = delta >= 0 ? `+${delta}` : String(delta)
     el.style.color = delta >= 0 ? '#1FD65F' : delta >= -15 ? '#C89B3C' : '#FF3B3B'
     state.csDeltaHistory.push({ t: gameTime, d: delta })
@@ -495,7 +510,8 @@ function updateDrakeDisplay() {
 // ── Early game focus ─────────────────────────────────────────────────────────
 function updateEarlyFocus(gameTime, cs) {
   if (gameTime < 90) { setFocus('Last hit every minion — 6 cs = 1 kill gold', false); return }
-  const deficit = Math.floor((gameTime / 60) * 7) - cs
+  const target = state.targetCS || 7.0
+  const deficit = Math.floor((gameTime / 60) * target) - cs
   if      (deficit <= 5)  setFocus('CS on pace — keep it up!', false)
   else if (deficit <= 15) setFocus(`Last hit — ${deficit} CS behind pace`, false)
   else                    setFocus(`Farm focus — ${deficit} CS behind target`, true)
@@ -553,12 +569,18 @@ function checkTimeline(gameTime) {
       // Skip alerts more than 45s in the past — avoids firing stale objective
       // warnings when the overlay starts mid-game or state resets
       if (gameTime - alert.time > 45) continue
+
+      let msg = alert.msg
+      if (alert.time === 5 && state.targetCS && state.targetCS !== 7.0) {
+        msg = `Focus CS — target ${state.targetCS.toFixed(1)}+ per minute`
+      }
+
       if (ALERT_CATS.has(alert.cat)) {
-        pushAlert(alert.msg, alert.cat, alert.pri)
+        pushAlert(msg, alert.cat, alert.pri)
         // Feature 1: Speak urgent objective alerts
-        if (alert.pri === 'urgent') speak(alert.msg.replace(/[🐛🐉🟣⚔⚠]/gu, '').trim(), true)
+        if (alert.pri === 'urgent') speak(msg.replace(/[🐛🐉🟣⚔⚠]/gu, '').trim(), true)
       } else {
-        setFocus(alert.msg, alert.pri === 'urgent')
+        setFocus(msg, alert.pri === 'urgent')
       }
     }
   }
@@ -615,6 +637,22 @@ function checkEvents(events, activeName, allPlayers, myTeam) {
   for (const ev of events) {
     if (state.seenEventIds.has(ev.EventID)) continue
     state.seenEventIds.add(ev.EventID)
+
+    // Log important game events for momentum context
+    let evDesc = ''
+    if (ev.EventName === 'ChampionKill') {
+      evDesc = `[${fmtTime(ev.EventTime)}] ${ev.KillerName} killed ${ev.VictimName}`
+    } else if (ev.EventName === 'TurretKilled') {
+      evDesc = `[${fmtTime(ev.EventTime)}] Turret destroyed by ${ev.KillerName || 'minions'}`
+    } else if (ev.EventName === 'DragonKill' || ev.EventName === 'BaronKill' || ev.EventName === 'RiftHeraldKill') {
+      evDesc = `[${fmtTime(ev.EventTime)}] ${ev.EventName.replace('Kill', '')} taken by ${ev.KillerName}`
+    } else if (ev.EventName === 'InhibKilled') {
+      evDesc = `[${fmtTime(ev.EventTime)}] Inhibitor destroyed by ${ev.KillerName}`
+    }
+    if (evDesc) {
+      state.recentGameEvents.push(evDesc)
+      if (state.recentGameEvents.length > 10) state.recentGameEvents.shift()
+    }
 
     // Events older than 60s relative to current game time are stale — update
     // state silently but never announce them to avoid alerts for things that
@@ -706,6 +744,7 @@ function checkEvents(events, activeName, allPlayers, myTeam) {
 
     if (!stale && ev.EventName === 'ChampionKill' && matchName(ev.VictimName, activeName)) {
       state.justDied = true
+      state.lastKillerName = ev.KillerName
       speak('You died', true)
     }
 
@@ -861,8 +900,10 @@ async function requestGamePlan() {
   ].filter(Boolean).join('\n')
 
   try {
-    const advice = await window.lolCoach.aiGameStart(prompt)
-    if (advice) {
+    const response = await window.lolCoach.aiGameStart(prompt)
+    if (response) {
+      const advice = response.advice || response
+      state.targetCS = response.targetCS || 7.0
       focusText.textContent = `✦ ${advice}`
       focusText.style.color = '#C084FC'
       state.currentFocus = `✦ ${advice}`
@@ -881,7 +922,8 @@ async function requestAICoaching(trigger) {
   state.lastAICallAt = state.gameTime
 
   const j     = state.jungler
-  const delta = state.cs - Math.floor((state.gameTime / 60) * 7)
+  const targetCS = state.targetCS || 7.0
+  const delta = state.cs - Math.floor((state.gameTime / 60) * targetCS)
   const phase = state.gameTime < 600 ? 'early' : state.gameTime < 1200 ? 'mid' : 'late'
 
   const jgStatus = j.isDead ? 'dead'
@@ -921,23 +963,46 @@ async function requestAICoaching(trigger) {
   const oppCS  = opponent?.scores?.creepScore ?? '?'
   const myLvl  = state.level ?? '?'
 
+  // Threat-based scanning: summarize enemy builds & stats
+  const enemyItemsSummary = state.allPlayers
+    .filter(p => me && p.team !== me.team)
+    .map(p => {
+      const pItems = p.items?.map(i => i.displayName).filter(Boolean).join(', ') || 'none'
+      const kda = `${p.scores?.kills ?? 0}/${p.scores?.deaths ?? 0}/${p.scores?.assists ?? 0}`
+      return `${p.championName} (${kda}, Items: ${pItems})`
+    })
+    .join(' | ')
+
   const lines = [
     `My champion: ${state.myChampion ?? '?'}${state.isARAM ? ' (ARAM)' : ` (${state.myPosition ?? '?'})`} — ${phase} game (${fmtTime(state.gameTime)})`,
     champKit ? `Current kit (live patch): ${champKit}` : '',
     `Ally team:  ${state.allyTeam.join(', ') || 'unknown'}`,
     `Enemy team: ${state.enemyTeam.join(', ') || 'unknown'}`,
     scoutCtx ?? '',
-    `KDA: ${state.kills}/${state.deaths}/${state.assists} | Level: ${myLvl} | CS: ${state.cs}`,
+    `KDA: ${state.kills}/${state.deaths}/${state.assists} | Level: ${myLvl} | CS: ${state.cs} (Delta vs Target: ${delta >= 0 ? '+' : ''}${delta})`,
     opponent ? `Lane opponent (${opponent.championName}): Level ${oppLvl} | CS ${oppCS}` : '',
     ...(!state.isARAM ? [
       `Drakes: Ally ${state.allyDrakes} · Enemy ${state.enemyDrakes}`,
       `Enemy JG: ${j.champion ?? '?'} — ${jgStatus}`,
       objParts.join(' | '),
     ] : []),
-    `My items: ${myItems.slice(0, 4).join(', ') || 'none'}`,
-    `Recent: ${recentEvts}`,
+    `My items: ${myItems.join(', ') || 'none'}`,
+    `Enemy Items/KDA: ${enemyItemsSummary || 'unknown'}`,
+    `Recent Alerts: ${recentEvts}`,
+    `Recent Game Events: ${state.recentGameEvents?.join(' | ') || 'None'}`,
   ].filter(Boolean)
-  if (trigger === 'death') lines.push('TRIGGER: player just died — advise on respawn plan')
+
+  if (trigger === 'death') {
+    lines.push('TRIGGER: player just died — advise on respawn plan')
+    if (state.lastKillerName) {
+      const killer = state.allPlayers.find(p => matchName(p.summonerName, state.lastKillerName))
+      if (killer) {
+        const kKDA = `${killer.scores?.kills ?? 0}/${killer.scores?.deaths ?? 0}/${killer.scores?.assists ?? 0}`
+        const kItems = killer.items?.map(i => i.displayName).filter(Boolean).join(', ') || 'none'
+        lines.push(`Death Info: Killed by ${killer.championName} (KDA: ${kKDA}, Items: ${kItems})`)
+      }
+    }
+  }
 
   try {
     const advice = await window.lolCoach.aiCoaching(lines.join('\n'))
@@ -1027,6 +1092,43 @@ function checkEnemyPushWindow(allPlayers, myTeam, me, gameTime) {
     pushAlert(`Enemy laner dead${tStr} — crash wave and roam`, 'push', 'normal')
     speak('Enemy laner is dead. Crash the wave and roam.', false)
   }
+}
+
+function checkRoamWindows(me, opponent, gameTime) {
+  if (!me || !opponent || gameTime < 180) return
+  if (state.myPosition === 'JUNGLE' || state.myPosition === 'UTILITY') return
+
+  const isDead = opponent.isDead
+  const respawnTimer = opponent.respawnTimer ?? 0
+
+  if (isDead) {
+    if (respawnTimer > 8 && respawnTimer <= 14 && !state.roamAlerts.has(`respawn-soon-${opponent.summonerName}`)) {
+      state.roamAlerts.add(`respawn-soon-${opponent.summonerName}`)
+      const msg = `⚠ Enemy ${opponent.championName} respawning in ${Math.ceil(respawnTimer)}s — crash wave and recall`
+      pushAlert(msg, 'wave', 'warning')
+      speak(`Enemy ${opponent.championName} respawning in ${Math.ceil(respawnTimer)} seconds. Crash wave and recall.`, false)
+    }
+  } else {
+    if (state.laneOpponentWasDead && !isDead) {
+      const msg = `⚔ Enemy ${opponent.championName} respawned — returning to lane`
+      pushAlert(msg, 'wave', 'normal')
+      speak(`Enemy ${opponent.championName} respawned, returning to lane.`, false)
+      state.roamAlerts.delete(`respawn-soon-${opponent.summonerName}`)
+    }
+
+    // Recall item scanning
+    const oppItems = opponent.items?.map(i => i.itemID).filter(Boolean) ?? []
+    const prevItems = state.opponentPrevItems || []
+
+    const boughtItem = oppItems.some(id => !prevItems.includes(id))
+    if (boughtItem && prevItems.length > 0 && !state.laneOpponentWasDead) {
+      const msg = `⚡ Enemy ${opponent.championName} recalled & bought items — check their power spike`
+      pushAlert(msg, 'wave', 'normal')
+      speak(`Enemy ${opponent.championName} recalled and bought items.`, false)
+    }
+    state.opponentPrevItems = oppItems
+  }
+  state.laneOpponentWasDead = isDead
 }
 
 // ── Situational context badge ─────────────────────────────────────────────────

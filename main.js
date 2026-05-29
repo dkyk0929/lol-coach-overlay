@@ -1028,7 +1028,7 @@ ipcMain.handle('ai-coaching', async (event, prompt) => {
   lastAICallTime = now
   try {
     return trimToSentence(await callAnthropic({
-      systemText: 'You are a League of Legends in-game coach. Give 1-2 specific actionable sentences tailored to the player\'s champion and role. Focus on macro play, win conditions, positioning, and objective control rather than specific ability names or mechanics that may have changed in recent patches. The game time is included in the prompt — never suggest objectives or events that have already passed. Name champions and objectives. If player intel with ranks is provided, call out high-elo threats. No fluff, no markdown. Max 50 words.',
+      systemText: 'You are a League of Legends in-game coach. Give 1-2 specific actionable sentences tailored to the player\'s champion, role, and current state. Focus on macro play, win conditions, positioning, build adjustments, and objective control. Analyze the enemy team composition/items to suggest counter items (e.g. Magic Resist, Anti-heal, Pen) when appropriate. Be aware of game momentum (recent events). On death, analyze the killer\'s details to recommend defensive pivots. Never suggest objectives or events that have already passed. Name champions. No fluff, no markdown. Max 50 words.',
       userText: prompt, maxTokens: 120,
     }))
   } catch (e) { console.error('AI coaching error:', e.message); return null }
@@ -1036,10 +1036,31 @@ ipcMain.handle('ai-coaching', async (event, prompt) => {
 
 ipcMain.handle('ai-game-start', async (event, prompt) => {
   try {
-    return trimToSentence(await callAnthropic({
-      systemText: 'You are a League of Legends in-game coach giving a game plan at match start. Give 2 sentences: one laning strategy based on the champion\'s general playstyle and matchup, one win condition. Avoid referencing specific ability names or mechanics that may be outdated — focus on macro patterns, trading windows, and power spikes by level/item. If player intel with ranks is included, call out high-elo threats by name. No markdown. Max 60 words.',
-      userText: prompt, maxTokens: 150,
-    }))
+    const responseText = await callAnthropic({
+      systemText: 'You are a League of Legends in-game coach giving a game plan at match start. Analyze the matchup and return a JSON object with exactly two keys:\n1. "advice": A string of exactly 2 sentences: one laning strategy based on the champion\'s general playstyle and matchup, one win condition. Focus on macro patterns. Avoid referencing specific ability names. If player intel with ranks is included, call out high-elo threats by name.\n2. "targetCS": A number representing the recommended target CS per minute for this matchup (e.g., between 5.0 and 9.5). Default to 7.0 if unsure.\nReturn ONLY the JSON object. Do not include markdown formatting or wrapper text.',
+      userText: prompt, maxTokens: 200,
+    })
+    if (!responseText) return null
+    const cleaned = responseText.replace(/```json|```/g, '').trim()
+    try {
+      const parsed = JSON.parse(cleaned)
+      return {
+        advice: trimToSentence(parsed.advice),
+        targetCS: typeof parsed.targetCS === 'number' ? parsed.targetCS : 7.0
+      }
+    } catch (parseErr) {
+      console.error('JSON parse failed for game-start, falling back:', parseErr.message)
+      let targetCS = 7.0
+      const csMatch = cleaned.match(/"targetCS"\s*:\s*([0-9.]+)/)
+      if (csMatch && csMatch[1]) {
+        const val = parseFloat(csMatch[1])
+        if (!isNaN(val)) targetCS = val
+      }
+      return {
+        advice: trimToSentence(cleaned),
+        targetCS
+      }
+    }
   } catch (e) { console.error('AI game-start error:', e.message); return null }
 })
 

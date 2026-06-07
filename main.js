@@ -12,6 +12,7 @@ let mainWindow
 let notifWindow
 let champSelectWindow
 let controlPanelWindow = null
+let infoWindow = null
 let tray = null
 let pollInterval
 let lcuPollInterval
@@ -204,6 +205,42 @@ ipcMain.on('toggle-ai-setup', () => {
   else createAiSetupWindow()
 })
 ipcMain.on('close-ai-setup', () => { if (aiSetupWindow && !aiSetupWindow.isDestroyed()) aiSetupWindow.close() })
+
+// ── Info & Links window ────────────────────────────────────────────────────────
+function createInfoWindow() {
+  if (infoWindow && !infoWindow.isDestroyed()) {
+    infoWindow.focus(); return
+  }
+  const { width: sw, height: sh } = screen.getPrimaryDisplay().workAreaSize
+  const w = 400, h = 250
+  infoWindow = new BrowserWindow({
+    width: w, height: h,
+    x: Math.floor((sw - w) / 2),
+    y: Math.floor((sh - h) / 2),
+    transparent: true,
+    backgroundColor: '#00000000',
+    frame: false,
+    alwaysOnTop: true,
+    skipTaskbar: false,
+    resizable: false,
+    hasShadow: false,
+    focusable: true,
+    webPreferences: {
+      preload: path.join(__dirname, 'info-preload.js'),
+      contextIsolation: true,
+      nodeIntegration: false,
+    },
+  })
+  infoWindow.loadFile(path.join(__dirname, 'src', 'info.html'))
+  infoWindow.setAlwaysOnTop(true, 'screen-saver')
+}
+
+ipcMain.on('open-info-window',   () => createInfoWindow())
+ipcMain.on('toggle-info-window', () => {
+  if (infoWindow && !infoWindow.isDestroyed()) infoWindow.close()
+  else createInfoWindow()
+})
+ipcMain.on('close-info-window', () => { if (infoWindow && !infoWindow.isDestroyed()) infoWindow.close() })
 
 ipcMain.handle('get-ai-status', () => ({ hasKey: !!loadConfig().apiKey }))
 

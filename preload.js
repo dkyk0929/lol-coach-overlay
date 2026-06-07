@@ -24,6 +24,7 @@ contextBridge.exposeInMainWorld('lolCoach', {
   toggleBattleLog:     ()       => ipcRenderer.send('toggle-battle-log'),
   openAiSetup:         ()       => ipcRenderer.send('open-ai-setup'),
   toggleAiSetup:       ()       => ipcRenderer.send('toggle-ai-setup'),
+  toggleInfoWindow:    ()       => ipcRenderer.send('toggle-info-window'),
   onAiKeySaved:        (cb)     => ipcRenderer.on('ai-key-saved', () => cb()),
   openUrl:             (url)    => ipcRenderer.send('open-url', url),
   getScoutContext:     ()       => ipcRenderer.invoke('get-scout-context'),

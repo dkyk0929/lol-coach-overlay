@@ -168,6 +168,7 @@ document.addEventListener('mouseleave', () => { if (state.running) appEl.classLi
 $('btn-log').addEventListener('click',     () => window.lolCoach.toggleBattleLog())
 $('btn-coffee').addEventListener('click',  () => window.lolCoach.openUrl('https://buymeacoffee.com/bdannykimt'))
 $('btn-opacity').addEventListener('click', () => toggleOpacityPanel())
+$('btn-info').addEventListener('click',    () => window.lolCoach.toggleInfoWindow())
 
 // Opacity slider
 $('opacity-slider').addEventListener('input', (e) => applyOpacity(parseInt(e.target.value)))

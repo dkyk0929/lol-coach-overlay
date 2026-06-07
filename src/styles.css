@@ -113,15 +113,15 @@ body {
   position: absolute;
   top: 0; bottom: 0;
   right: 76px;
-  width: 28px;
-  display: flex;
-  flex-direction: column;
-  align-items: stretch;
-  justify-content: center;
+  width: 52px;
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  grid-template-rows: repeat(2, 1fr);
+  align-content: center;
   gap: 4px;
   z-index: 20;
   -webkit-app-region: no-drag;
-  padding: 10px 3px;
+  padding: 10px 4px;
   border-left: 1px solid var(--border-color);
 }
 
@@ -149,7 +149,7 @@ body {
 
 #btn-ai.active  { color: var(--teal); border-color: rgba(0,222,201,0.5); }
 #btn-coffee     { font-size: 11px; }
-#btn-coffee:hover { border-color: var(--border-hover); color: var(--gold); }
+#btn-coffee:hover, #btn-info:hover { border-color: var(--border-hover); color: var(--gold); }
 
 /* ── Util grid — mute + opacity ── */
 #util-grid {
@@ -189,7 +189,7 @@ body {
 #opacity-panel {
   position: absolute;
   top: 8px;
-  right: 108px;
+  right: 132px;
   background: rgba(10, 15, 26, 0.95);
   border: 1px solid var(--border-color);
   border-radius: 6px;
@@ -249,7 +249,7 @@ body {
 #waiting-screen {
   flex: 1; display: flex; align-items: center;
   gap: 12px; padding: 0 14px 0 16px;
-  padding-right: 112px;
+  padding-right: 136px;
   min-height: 0;
 }
 
@@ -269,7 +269,7 @@ body {
 #game-bar {
   height: 72px; flex-shrink: 0;
   display: flex; align-items: stretch;
-  padding-right: 108px;
+  padding-right: 132px;
 }
 
 .bar-divider {

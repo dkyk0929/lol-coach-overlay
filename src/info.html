@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' https://fonts.googleapis.com; font-src https://fonts.gstatic.com;">
+  <title>Info & Links</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="info.css">
+</head>
+<body>
+<div id="app">
+
+  <div id="header">
+    <span id="title">ℹ️ INFO & LINKS</span>
+    <button id="close-btn" title="Close">✕</button>
+  </div>
+
+  <div id="content">
+    <div class="brand-section">
+      <h1 class="brand-name">LOL COACH OVERLAY</h1>
+      <span class="brand-version" id="version-text">v1.6.4</span>
+    </div>
+    
+    <p class="description">
+      A lightweight, real-time overlay designed to improve your League of Legends gameplay with live coaching, jungle tracking, CS deltas, and automated timers.
+    </p>
+
+    <div class="links-grid">
+      <button class="link-btn btn-youtube" id="btn-yt" title="Open YouTube Channel">
+        <span class="btn-icon">📺</span>
+        <div class="btn-text">
+          <span class="btn-title">YouTube</span>
+          <span class="btn-desc">@DK_hobby</span>
+        </div>
+      </button>
+
+      <button class="link-btn btn-github" id="btn-gh" title="Open GitHub Repository">
+        <span class="btn-icon">📦</span>
+        <div class="btn-text">
+          <span class="btn-title">GitHub</span>
+          <span class="btn-desc">dkyk0929/lol-coach-overlay</span>
+        </div>
+      </button>
+    </div>
+    
+    <div class="footer">
+      Created by Danny Kim
+    </div>
+  </div>
+
+</div>
+<script src="info.js"></script>
+</body>
+</html>

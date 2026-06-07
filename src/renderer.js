@@ -462,8 +462,19 @@ function updateCS(gameTime, cs, me) {
     state.csDeltaHistory.push({ t: gameTime, d: delta })
     if (state.csDeltaHistory.length > 30) state.csDeltaHistory.shift()
     updateWaveTrend(delta)
+
+    // Add title / tooltip comparing with opponent and clarifying target pace
+    const opponent = state.allPlayers.find(p => p.team !== me?.team && p.position === me?.position && p.position !== 'JUNGLE')
+    if (opponent) {
+      const oppCS = opponent.scores?.creepScore ?? 0
+      const vsOpp = cs - oppCS
+      const vsOppStr = vsOpp >= 0 ? `+${vsOpp}` : String(vsOpp)
+      el.title = `CS vs Target Pace: ${delta >= 0 ? '+' : ''}${delta}\nCS vs Opponent (${opponent.championName}): ${vsOppStr}`
+    } else {
+      el.title = `CS vs Target Pace: ${delta >= 0 ? '+' : ''}${delta}`
+    }
   } else {
-    el.textContent = '—'; el.style.color = ''
+    el.textContent = '—'; el.style.color = ''; el.title = ''
   }
 }
 
@@ -944,12 +955,12 @@ async function requestAICoaching(trigger) {
   if (!state.isARAM) {
     if (state.gameTime >= 1200) {
       objParts.push(baronLeft <= 0
-        ? `Baron: ALIVE NOW (up ${Math.floor(-baronLeft)}s ago)`
-        : `Baron: spawns in ${Math.ceil(baronLeft)}s`)
+        ? `Baron: ALIVE NOW (spawned at ${fmtTime(state.nextBaronSpawn)})`
+        : `Baron: spawns at ${fmtTime(state.nextBaronSpawn)} (in ${Math.ceil(baronLeft)}s)`)
     }
     objParts.push(dragonLeft <= 0
-      ? `Dragon: ALIVE NOW`
-      : `Dragon: spawns in ${Math.ceil(dragonLeft)}s`)
+      ? `Dragon: ALIVE NOW (spawned at ${fmtTime(state.nextDragonSpawn)})`
+      : `Dragon: spawns at ${fmtTime(state.nextDragonSpawn)} (in ${Math.ceil(dragonLeft)}s)`)
   }
 
   // Find lane opponent for accurate level/CS comparison
@@ -963,13 +974,17 @@ async function requestAICoaching(trigger) {
   const oppCS  = opponent?.scores?.creepScore ?? '?'
   const myLvl  = state.level ?? '?'
 
+  const oppCSNum = typeof oppCS === 'number' ? oppCS : 0
+  const vsOpponentDelta = state.cs - oppCSNum
+  const vsOpponentStr = opponent ? `, vs Lane Opponent: ${vsOpponentDelta >= 0 ? '+' : ''}${vsOpponentDelta} CS` : ''
+
   // Threat-based scanning: summarize enemy builds & stats
   const enemyItemsSummary = state.allPlayers
     .filter(p => me && p.team !== me.team)
     .map(p => {
       const pItems = p.items?.map(i => i.displayName).filter(Boolean).join(', ') || 'none'
-      const kda = `${p.scores?.kills ?? 0}/${p.scores?.deaths ?? 0}/${p.scores?.assists ?? 0}`
-      return `${p.championName} (${kda}, Items: ${pItems})`
+      const kda = `${p.scores?.kills ?? 0} Kills / ${p.scores?.deaths ?? 0} Deaths / ${p.scores?.assists ?? 0} Assists`
+      return `${p.championName} (KDA: ${kda}, Items: ${pItems})`
     })
     .join(' | ')
 
@@ -979,7 +994,7 @@ async function requestAICoaching(trigger) {
     `Ally team:  ${state.allyTeam.join(', ') || 'unknown'}`,
     `Enemy team: ${state.enemyTeam.join(', ') || 'unknown'}`,
     scoutCtx ?? '',
-    `KDA: ${state.kills}/${state.deaths}/${state.assists} | Level: ${myLvl} | CS: ${state.cs} (Delta vs Target: ${delta >= 0 ? '+' : ''}${delta})`,
+    `Player Stats: ${state.kills} Kills / ${state.deaths} Deaths / ${state.assists} Assists | Level: ${myLvl} | CS: ${state.cs} (vs Target Pace: ${delta >= 0 ? '+' : ''}${delta} CS${vsOpponentStr})`,
     opponent ? `Lane opponent (${opponent.championName}): Level ${oppLvl} | CS ${oppCS}` : '',
     ...(!state.isARAM ? [
       `Drakes: Ally ${state.allyDrakes} · Enemy ${state.enemyDrakes}`,
@@ -997,7 +1012,7 @@ async function requestAICoaching(trigger) {
     if (state.lastKillerName) {
       const killer = state.allPlayers.find(p => matchName(p.summonerName, state.lastKillerName))
       if (killer) {
-        const kKDA = `${killer.scores?.kills ?? 0}/${killer.scores?.deaths ?? 0}/${killer.scores?.assists ?? 0}`
+        const kKDA = `${killer.scores?.kills ?? 0} Kills / ${killer.scores?.deaths ?? 0} Deaths / ${killer.scores?.assists ?? 0} Assists`
         const kItems = killer.items?.map(i => i.displayName).filter(Boolean).join(', ') || 'none'
         lines.push(`Death Info: Killed by ${killer.championName} (KDA: ${kKDA}, Items: ${kItems})`)
       }

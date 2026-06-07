@@ -57,15 +57,17 @@ saveBtn.addEventListener('click', async () => {
 
   saveBtn.disabled = true
   saveBtn.textContent = '...'
-  const ok = await window.aiSetup.saveKey(key)
+  const res = await window.aiSetup.saveKey(key)
   saveBtn.disabled = false
   saveBtn.textContent = 'SAVE'
 
-  if (ok) {
-    showFeedback('Key saved! AI coaching is now active.', 'success')
+  if (res && res.success) {
+    showFeedback('Key verified and saved! AI coaching is now active.', 'success')
     setStatus(true)
   } else {
-    showFeedback('Failed to save key — try again', 'error')
+    const errMsg = res && res.error ? res.error : 'Failed to save key — try again'
+    showFeedback(`Error: ${errMsg}`, 'error')
+    keyInput.classList.add('error')
   }
 })
 

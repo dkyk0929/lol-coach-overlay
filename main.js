@@ -207,14 +207,35 @@ ipcMain.on('close-ai-setup', () => { if (aiSetupWindow && !aiSetupWindow.isDestr
 
 ipcMain.handle('get-ai-status', () => ({ hasKey: !!loadConfig().apiKey }))
 
-ipcMain.handle('save-api-key-from-setup', (_, key) => {
+ipcMain.handle('save-api-key-from-setup', async (_, key) => {
   const trimmed = key.trim()
+  
+  // Test the key first
+  const originalApiKey = anthropicApiKey
+  anthropicApiKey = trimmed // temporarily set key for testing
+  try {
+    const res = await callAnthropic({
+      systemText: 'System test key.',
+      userText: 'Respond with OK',
+      maxTokens: 5
+    })
+    if (!res) {
+      throw new Error('Received empty response from Anthropic API')
+    }
+  } catch (err) {
+    anthropicApiKey = originalApiKey // restore original key
+    return { success: false, error: err.message }
+  }
+  
+  // Test succeeded! Save key permanently
   saveConfig({ apiKey: trimmed })
   initAI(trimmed)
+  
   // Notify main window so AI button + dot update
   if (mainWindow && !mainWindow.isDestroyed())
     mainWindow.webContents.send('ai-key-saved')
-  return true
+    
+  return { success: true }
 })
 
 // ── Recent games window ───────────────────────────────────────────────────────
@@ -338,12 +359,26 @@ function callAnthropic({ systemText, userText, maxTokens }) {
       let data = ''
       res.on('data', c => data += c)
       res.on('end', () => {
-        try { resolve(JSON.parse(data).content?.[0]?.text?.trim() ?? null) }
-        catch { reject(new Error('parse error')) }
+        try {
+          const parsed = JSON.parse(data)
+          if (res.statusCode !== 200) {
+            const errMsg = parsed.error?.message || `HTTP ${res.statusCode}`
+            reject(new Error(errMsg))
+          } else {
+            resolve(parsed.content?.[0]?.text?.trim() ?? null)
+          }
+        }
+        catch (err) { reject(new Error('Failed to parse API response: ' + err.message)) }
       })
     })
-    req.on('timeout', () => { req.destroy(); reject(new Error('timeout')) })
-    req.on('error', reject)
+    req.on('timeout', () => { req.destroy(); reject(new Error('Request timed out after 15 seconds')) })
+    req.on('error', (e) => {
+      let msg = e.message
+      if (msg.includes('CERT') || msg.includes('cert') || msg.includes('ssl')) {
+        msg = 'SSL Certificate Verification Error. Usually caused by an antivirus, firewall, proxy, or VPN decrypting your network traffic.'
+      }
+      reject(new Error(msg))
+    })
     req.write(body)
     req.end()
   })

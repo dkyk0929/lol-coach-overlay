@@ -476,7 +476,10 @@ function callGemini({ systemText, userText, maxTokens }) {
         parts: [{ text: systemText }]
       },
       generationConfig: {
-        maxOutputTokens: maxTokens
+        maxOutputTokens: maxTokens,
+        thinkingConfig: {
+          thinkingBudget: 0
+        }
       }
     })
     

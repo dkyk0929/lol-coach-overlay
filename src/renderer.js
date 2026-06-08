@@ -78,6 +78,103 @@ function speak(text, urgent = false) {
   window.speechSynthesis.speak(utt)
 }
 
+function isCoachStatementRelevant(text, apiElapsedTime = 0) {
+  if (state.isARAM) return true;
+
+  const lowerText = text.toLowerCase();
+  
+  // Parse relative time mentions, e.g. "in 30s", "in 30 seconds", "in 1 minute", "in 1m"
+  const relativeTimeRegex = /(\d+)\s*(seconds?|secs?|s|minutes?|mins?|m)\b/gi;
+  let match;
+  let mentionedTimeSec = null;
+
+  while ((match = relativeTimeRegex.exec(lowerText)) !== null) {
+    const value = parseInt(match[1], 10);
+    const unit = match[2].toLowerCase();
+    if (unit.startsWith('m')) {
+      mentionedTimeSec = value * 60;
+    } else {
+      mentionedTimeSec = value;
+    }
+    break; // Only check the first relative time mention
+  }
+
+  // If a short relative time is mentioned (e.g. under 45 seconds),
+  // and the API request itself took longer than 10 seconds,
+  // reject if the API latency is significant relative to the time mentioned.
+  if (mentionedTimeSec !== null && mentionedTimeSec <= 45 && apiElapsedTime > 10) {
+    console.log(`[Relevance Filter] Rejected short time advice due to API latency (${Math.round(apiElapsedTime)}s): "${text}"`);
+    return false;
+  }
+
+  // Parse absolute times, e.g. "at 20:00", "at 15:30"
+  const absoluteTimeRegex = /\b(\d{1,2}):(\d{2})\b/gi;
+  let absMatch = absoluteTimeRegex.exec(lowerText);
+  let mentionedAbsoluteSec = null;
+  if (absMatch) {
+    const mins = parseInt(absMatch[1], 10);
+    const secs = parseInt(absMatch[2], 10);
+    mentionedAbsoluteSec = mins * 60 + secs;
+  }
+
+  const hasDragon = lowerText.includes('dragon') || lowerText.includes('drake');
+  const hasBaron = lowerText.includes('baron');
+
+  if (hasDragon) {
+    const dragonLeft = state.nextDragonSpawn - state.gameTime;
+
+    if (mentionedTimeSec !== null) {
+      if (dragonLeft <= 0) {
+        console.log(`[Relevance Filter] Rejected dragon advice: dragon is already alive, but AI said: "${text}"`);
+        return false;
+      }
+      if (Math.abs(dragonLeft - mentionedTimeSec) > 35) {
+        console.log(`[Relevance Filter] Rejected dragon advice: dragon spawns in ${Math.round(dragonLeft)}s, but AI said relative ${mentionedTimeSec}s: "${text}"`);
+        return false;
+      }
+    }
+
+    if (mentionedAbsoluteSec !== null) {
+      if (state.gameTime > mentionedAbsoluteSec) {
+        console.log(`[Relevance Filter] Rejected dragon advice: absolute time ${fmtTime(mentionedAbsoluteSec)} has passed, but AI said: "${text}"`);
+        return false;
+      }
+      if (Math.abs(state.nextDragonSpawn - mentionedAbsoluteSec) > 20) {
+        console.log(`[Relevance Filter] Rejected dragon advice: next spawn is at ${fmtTime(state.nextDragonSpawn)}, but AI said absolute ${fmtTime(mentionedAbsoluteSec)}: "${text}"`);
+        return false;
+      }
+    }
+  }
+
+  if (hasBaron) {
+    const baronLeft = state.nextBaronSpawn - state.gameTime;
+
+    if (mentionedTimeSec !== null) {
+      if (baronLeft <= 0) {
+        console.log(`[Relevance Filter] Rejected baron advice: baron is already alive, but AI said: "${text}"`);
+        return false;
+      }
+      if (Math.abs(baronLeft - mentionedTimeSec) > 45) {
+        console.log(`[Relevance Filter] Rejected baron advice: baron spawns in ${Math.round(baronLeft)}s, but AI said relative ${mentionedTimeSec}s: "${text}"`);
+        return false;
+      }
+    }
+
+    if (mentionedAbsoluteSec !== null) {
+      if (state.gameTime > mentionedAbsoluteSec) {
+        console.log(`[Relevance Filter] Rejected baron advice: absolute time ${fmtTime(mentionedAbsoluteSec)} has passed, but AI said: "${text}"`);
+        return false;
+      }
+      if (Math.abs(state.nextBaronSpawn - mentionedAbsoluteSec) > 20) {
+        console.log(`[Relevance Filter] Rejected baron advice: next spawn is at ${fmtTime(state.nextBaronSpawn)}, but AI said absolute ${fmtTime(mentionedAbsoluteSec)}: "${text}"`);
+        return false;
+      }
+    }
+  }
+
+  return true;
+}
+
 function setTTSMuted(muted, notify = true) {
   ttsMuted = muted
   const btn = $('btn-tts')
@@ -1020,9 +1117,14 @@ async function requestAICoaching(trigger) {
     }
   }
 
+  const requestTime = state.gameTime
   try {
     const advice = await window.lolCoach.aiCoaching(lines.join('\n'))
     if (advice) {
+      const apiElapsedTime = state.gameTime - requestTime
+      if (!isCoachStatementRelevant(advice, apiElapsedTime)) {
+        return
+      }
       focusText.textContent = `✦ ${advice}`
       focusText.style.color = '#7ee8f5'
       state.aiMessageAt = state.gameTime  // lock bar for 15s

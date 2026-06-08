@@ -167,7 +167,7 @@ body {
   border-top: 1px solid var(--border-color);
   padding-top: 12px;
 }
-#how-to-title {
+.how-to-title {
   font-family: var(--font-mono);
   font-size: 11px;
   font-weight: 700;
@@ -175,7 +175,7 @@ body {
   color: var(--gold);
   margin-bottom: 8px;
 }
-#steps { display: flex; flex-direction: column; gap: 5px; }
+.steps { display: flex; flex-direction: column; gap: 5px; }
 .step {
   display: flex;
   align-items: baseline;
@@ -195,6 +195,21 @@ body {
 .step strong { color: var(--text-primary); font-weight: 600; }
 .link { color: var(--teal); text-decoration: underline; cursor: pointer; }
 .mono { font-family: var(--font-mono); color: var(--gold); font-size: 11px; }
+
+.billing-note {
+  font-size: 11px;
+  color: var(--text-muted);
+  background: rgba(0, 222, 201, 0.04);
+  border: 1px dashed rgba(0, 222, 201, 0.2);
+  border-radius: 4px;
+  padding: 8px 10px;
+  margin-top: 8px;
+  line-height: 1.4;
+}
+.billing-note strong {
+  color: var(--teal);
+  font-weight: 600;
+}
 
 /* ── Key section ── */
 #key-section {

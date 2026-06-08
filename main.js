@@ -178,7 +178,7 @@ function createAiSetupWindow() {
     aiSetupWindow.focus(); return
   }
   const { width: sw, height: sh } = screen.getPrimaryDisplay().workAreaSize
-  const w = 560, h = 460
+  const w = 580, h = 640
   aiSetupWindow = new BrowserWindow({
     width: w, height: h,
     x: Math.floor((sw - w) / 2),

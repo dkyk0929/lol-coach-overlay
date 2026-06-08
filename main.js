@@ -1139,12 +1139,20 @@ ipcMain.handle('get-scout-context', () => buildScoutContext())
 ipcMain.handle('get-champ-kit',    () => currentChampKit)
 
 ipcMain.handle('ai-postgame', async (event, prompt) => {
+  const cfg = loadConfig()
+  const provider = cfg.aiProvider || 'anthropic'
+  const hasKey = provider === 'gemini' ? !!cfg.geminiApiKey : !!cfg.apiKey
+  if (!hasKey) return null
+
   try {
     return await callAI({
       systemText: 'You are a League of Legends post-game coach. Analyze why the player won or lost based on their stats and key events. Give 3-4 specific sentences. Identify the single most important factor and one concrete thing to improve next game. Reference their champion, role, and actual numbers. No fluff. No markdown, no asterisks, no bold formatting — plain text only.',
       userText: prompt, maxTokens: 200,
     })
-  } catch (e) { console.error('AI post-game error:', e.message); return null }
+  } catch (e) {
+    console.error('AI post-game error:', e.message)
+    throw e
+  }
 })
 
 ipcMain.handle('get-version',  () => app.getVersion())
@@ -1224,6 +1232,11 @@ ipcMain.handle('ai-coaching', async (event, prompt) => {
 })
 
 ipcMain.handle('ai-game-start', async (event, prompt) => {
+  const cfg = loadConfig()
+  const provider = cfg.aiProvider || 'anthropic'
+  const hasKey = provider === 'gemini' ? !!cfg.geminiApiKey : !!cfg.apiKey
+  if (!hasKey) return null
+
   try {
     const responseText = await callAI({
       systemText: 'You are a League of Legends in-game coach giving a game plan at match start. Analyze the matchup and return a JSON object with exactly two keys:\n1. "advice": A string of exactly 2 sentences: one laning strategy based on the champion\'s general playstyle and matchup, one win condition. Focus on macro patterns. Avoid referencing specific ability names. If player intel with ranks is included, call out high-elo threats by name.\n2. "targetCS": A number representing the recommended target CS per minute for this matchup (e.g., between 5.0 and 9.5). Default to 7.0 if unsure.\nReturn ONLY the JSON object. Do not include markdown formatting or wrapper text.',
@@ -1250,16 +1263,27 @@ ipcMain.handle('ai-game-start', async (event, prompt) => {
         targetCS
       }
     }
-  } catch (e) { console.error('AI game-start error:', e.message); return null }
+  } catch (e) {
+    console.error('AI game-start error:', e.message)
+    throw e
+  }
 })
 
 ipcMain.handle('ai-champ-select', async (event, prompt) => {
+  const cfg = loadConfig()
+  const provider = cfg.aiProvider || 'anthropic'
+  const hasKey = provider === 'gemini' ? !!cfg.geminiApiKey : !!cfg.apiKey
+  if (!hasKey) return null
+
   try {
     return await callAI({
       systemText: 'You are a League of Legends champion select coach. Recommend exactly 3 champions for the given role. Format your response as exactly 3 lines: "1. ChampName — reason" where reason is under 10 words. Consider enemy comp and ally synergy. Be specific.',
       userText: prompt, maxTokens: 160,
     })
-  } catch (e) { console.error('AI champ-select error:', e.message); return null }
+  } catch (e) {
+    console.error('AI champ-select error:', e.message)
+    throw e
+  }
 })
 
 // ── Session history ───────────────────────────────────────────────────────────

@@ -131,9 +131,9 @@ async function maybeRequestAI({ position, myTeam, theirTeam, bans, myLocked }) {
       el.className   = 'waiting'
       el.textContent = 'AI unavailable — set API key in HUD'
     }
-  } catch {
+  } catch (err) {
     el.className   = 'waiting'
-    el.textContent = 'Could not reach AI'
+    el.textContent = `AI error: ${err.message || 'Could not reach AI'}`
   } finally {
     aiPending = false
   }

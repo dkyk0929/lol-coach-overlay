@@ -96,13 +96,16 @@ async function requestAnalysis(d) {
       el.textContent = fallback
       window.postGame.saveLog({ ...d, analysis: fallback })
     }
-  } catch {
+  } catch (err) {
+    const errMsg = err.message || 'Unknown API error'
+    const fallback = buildFallbackAnalysis(d, errMsg)
     el.className = 'no-ai'
-    el.textContent = 'Could not reach AI for analysis.'
+    el.textContent = fallback
+    window.postGame.saveLog({ ...d, analysis: fallback })
   }
 }
 
-function buildFallbackAnalysis({ result, champion, position, kills, deaths, assists, cspm, gameTime, allyDrakes, enemyDrakes, isARAM }) {
+function buildFallbackAnalysis({ result, champion, position, kills, deaths, assists, cspm, gameTime, allyDrakes, enemyDrakes, isARAM }, apiErrorMsg = '') {
   const outcome  = result === 'Win' ? 'won' : result === 'Lose' ? 'lost' : 'finished (result not captured)'
   const csRate   = parseFloat(cspm)
   const parts    = []
@@ -126,7 +129,11 @@ function buildFallbackAnalysis({ result, champion, position, kills, deaths, assi
   else if (result === 'Win' && kills + assists >= deaths * 2)
     parts.push('Positive KDA contributed to the win — keep it up.')
 
-  parts.push('Add an API key in the AI Setup panel for detailed coaching.')
+  if (apiErrorMsg) {
+    parts.push(`(AI analysis failed: ${apiErrorMsg})`)
+  } else {
+    parts.push('Add an API key in the AI Setup panel for detailed coaching.')
+  }
   return parts.join(' ')
 }
 

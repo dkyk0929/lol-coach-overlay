@@ -19,6 +19,12 @@
 
   <div id="content">
 
+    <!-- Provider Selector Tabs -->
+    <div id="provider-selector">
+      <button class="provider-tab active" id="tab-anthropic">CLAUDE (ANTHROPIC)</button>
+      <button class="provider-tab" id="tab-gemini">GEMINI (GOOGLE - FREE)</button>
+    </div>
+
     <!-- Status -->
     <div id="status-bar">
       <span id="status-dot">●</span>
@@ -40,7 +46,7 @@
       <div class="col-sep"></div>
 
       <div class="feature-col">
-        <div class="col-header ai">WITH CLAUDE API KEY</div>
+        <div class="col-header ai">WITH AI API KEY</div>
         <div class="feature-row"><span class="check ai">✦</span> Game plan generated at match start</div>
         <div class="feature-row"><span class="check ai">✦</span> Live coaching tips every 45 seconds</div>
         <div class="feature-row"><span class="check ai">✦</span> Champion picks during champ select</div>
@@ -50,13 +56,24 @@
       </div>
     </div>
 
-    <!-- How to get key -->
-    <div id="how-to">
-      <div id="how-to-title">HOW TO GET YOUR FREE API KEY</div>
-      <div id="steps">
-        <div class="step"><span class="step-n">1</span>Go to <span class="link">console.anthropic.com</span> and create a free account</div>
+    <!-- How to get key (Anthropic) -->
+    <div id="how-to-anthropic" class="how-to-section">
+      <div class="how-to-title">HOW TO GET YOUR CLAUDE API KEY</div>
+      <div class="steps">
+        <div class="step"><span class="step-n">1</span>Go to <span class="link" data-url="https://console.anthropic.com">console.anthropic.com</span> and create a free account</div>
         <div class="step"><span class="step-n">2</span>Click <strong>API Keys</strong> in the left sidebar → <strong>Create Key</strong></div>
         <div class="step"><span class="step-n">3</span>Copy your key — it starts with <span class="mono">sk-ant-</span></div>
+        <div class="step"><span class="step-n">4</span>Paste it below and click SAVE</div>
+      </div>
+    </div>
+
+    <!-- How to get key (Gemini) -->
+    <div id="how-to-gemini" class="how-to-section hidden">
+      <div class="how-to-title">HOW TO GET YOUR FREE GEMINI API KEY</div>
+      <div class="steps">
+        <div class="step"><span class="step-n">1</span>Go to <span class="link" data-url="https://aistudio.google.com">aistudio.google.com</span> and sign in with Google</div>
+        <div class="step"><span class="step-n">2</span>Click <strong>Get API Key</strong> at the top left → <strong>Create API Key</strong></div>
+        <div class="step"><span class="step-n">3</span>Create key in a new project and copy it</div>
         <div class="step"><span class="step-n">4</span>Paste it below and click SAVE</div>
       </div>
     </div>
@@ -65,9 +82,10 @@
     <div id="key-section">
       <div id="key-label"></div>
       <div id="key-row">
-        <input id="key-input" type="password" placeholder="Paste sk-ant-... key here" autocomplete="off" spellcheck="false">
+        <input id="key-input" type="password" placeholder="Paste key here" autocomplete="off" spellcheck="false">
         <button id="save-btn">SAVE</button>
       </div>
+      <button id="activate-btn" class="hidden">ACTIVATE THIS PROVIDER</button>
       <div id="save-feedback" class="hidden"></div>
     </div>
 

@@ -99,12 +99,19 @@ body {
   letter-spacing: 1px;
   text-transform: uppercase;
 }
-#status-bar.enabled {
+#status-bar.enabled.anthropic {
+  border-color: rgba(243, 198, 111, 0.3);
+  background: rgba(243, 198, 111, 0.05);
+}
+#status-bar.enabled.anthropic #status-dot { color: var(--gold); }
+#status-bar.enabled.anthropic #status-text { color: var(--gold); }
+
+#status-bar.enabled.gemini {
   border-color: rgba(0, 222, 201, 0.3);
   background: rgba(0, 222, 201, 0.05);
 }
-#status-bar.enabled #status-dot { color: var(--teal); }
-#status-bar.enabled #status-text { color: var(--teal); }
+#status-bar.enabled.gemini #status-dot { color: var(--teal); }
+#status-bar.enabled.gemini #status-text { color: var(--teal); }
 #status-bar.disabled #status-dot { color: var(--text-muted); }
 #status-bar.disabled #status-text { color: var(--text-muted); }
 
@@ -254,3 +261,73 @@ body {
 }
 #save-feedback.success { color: var(--green); }
 #save-feedback.error   { color: var(--red); }
+
+/* ── Provider selector tabs ── */
+#provider-selector {
+  display: flex;
+  gap: 8px;
+  border-bottom: 1px solid var(--border-color);
+  padding-bottom: 12px;
+  flex-shrink: 0;
+}
+.provider-tab {
+  flex: 1;
+  background: rgba(10, 15, 26, 0.5);
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  color: var(--text-muted);
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 1px;
+  padding: 8px 12px;
+  cursor: pointer;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  text-align: center;
+}
+.provider-tab:hover {
+  border-color: var(--border-hover);
+  color: var(--text-primary);
+}
+.provider-tab.active#tab-anthropic {
+  background: rgba(243, 198, 111, 0.08);
+  border-color: var(--gold);
+  color: var(--gold);
+  box-shadow: 0 0 8px rgba(243, 198, 111, 0.15);
+}
+.provider-tab.active#tab-gemini {
+  background: rgba(0, 222, 201, 0.08);
+  border-color: var(--teal);
+  color: var(--teal);
+  box-shadow: 0 0 8px rgba(0, 222, 201, 0.15);
+}
+
+.how-to-section.hidden {
+  display: none !important;
+}
+
+/* ── Activate provider button ── */
+#activate-btn {
+  background: rgba(243, 198, 111, 0.08);
+  border: 1px solid rgba(243, 198, 111, 0.3);
+  border-radius: 4px;
+  color: var(--gold);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 1px;
+  padding: 8px 12px;
+  cursor: pointer;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  margin-top: 6px;
+  text-align: center;
+  width: 100%;
+}
+#activate-btn:hover {
+  background: rgba(243, 198, 111, 0.15);
+  border-color: var(--gold);
+  box-shadow: 0 0 8px rgba(243, 198, 111, 0.2);
+}
+#activate-btn:active {
+  transform: scale(0.99);
+}

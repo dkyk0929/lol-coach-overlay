@@ -18,6 +18,8 @@ let pollInterval
 let lcuPollInterval
 let ttsMuted = false   // synced from renderer
 let anthropicApiKey = null
+let geminiApiKey = null
+let aiProvider = 'anthropic'
 let lastAICallTime  = 0
 
 // ── Battle log ────────────────────────────────────────────────────────────────
@@ -242,37 +244,76 @@ ipcMain.on('toggle-info-window', () => {
 })
 ipcMain.on('close-info-window', () => { if (infoWindow && !infoWindow.isDestroyed()) infoWindow.close() })
 
-ipcMain.handle('get-ai-status', () => ({ hasKey: !!loadConfig().apiKey }))
-
-ipcMain.handle('save-api-key-from-setup', async (_, key) => {
-  const trimmed = key.trim()
-  
-  // Test the key first
-  const originalApiKey = anthropicApiKey
-  anthropicApiKey = trimmed // temporarily set key for testing
-  try {
-    const res = await callAnthropic({
-      systemText: 'System test key.',
-      userText: 'Respond with OK',
-      maxTokens: 5
-    })
-    if (!res) {
-      throw new Error('Received empty response from Anthropic API')
-    }
-  } catch (err) {
-    anthropicApiKey = originalApiKey // restore original key
-    return { success: false, error: err.message }
+ipcMain.handle('get-ai-status', () => {
+  const cfg = loadConfig()
+  const hasAnthropic = !!cfg.apiKey
+  const hasGemini = !!cfg.geminiApiKey
+  const activeProvider = cfg.aiProvider || 'anthropic'
+  const hasKey = activeProvider === 'gemini' ? hasGemini : hasAnthropic
+  return {
+    hasAnthropicKey: hasAnthropic,
+    hasGeminiKey: hasGemini,
+    aiProvider: activeProvider,
+    hasKey: hasKey
   }
-  
-  // Test succeeded! Save key permanently
-  saveConfig({ apiKey: trimmed })
-  initAI(trimmed)
-  
-  // Notify main window so AI button + dot update
-  if (mainWindow && !mainWindow.isDestroyed())
-    mainWindow.webContents.send('ai-key-saved')
-    
-  return { success: true }
+})
+
+ipcMain.handle('save-api-key-from-setup', async (_, provider, key) => {
+  const trimmed = key.trim()
+  if (provider === 'gemini') {
+    const originalGeminiApiKey = geminiApiKey
+    geminiApiKey = trimmed
+    try {
+      const res = await callGemini({
+        systemText: 'System test key.',
+        userText: 'Respond with OK',
+        maxTokens: 5
+      })
+      if (!res) {
+        throw new Error('Received empty response from Gemini API')
+      }
+    } catch (err) {
+      geminiApiKey = originalGeminiApiKey // restore
+      return { success: false, error: err.message }
+    }
+    saveConfig({ geminiApiKey: trimmed, aiProvider: 'gemini' })
+    aiProvider = 'gemini'
+    if (mainWindow && !mainWindow.isDestroyed())
+      mainWindow.webContents.send('ai-key-saved')
+    return { success: true }
+  } else {
+    const originalApiKey = anthropicApiKey
+    anthropicApiKey = trimmed
+    try {
+      const res = await callAnthropic({
+        systemText: 'System test key.',
+        userText: 'Respond with OK',
+        maxTokens: 5
+      })
+      if (!res) {
+        throw new Error('Received empty response from Anthropic API')
+      }
+    } catch (err) {
+      anthropicApiKey = originalApiKey // restore
+      return { success: false, error: err.message }
+    }
+    saveConfig({ apiKey: trimmed, aiProvider: 'anthropic' })
+    aiProvider = 'anthropic'
+    if (mainWindow && !mainWindow.isDestroyed())
+      mainWindow.webContents.send('ai-key-saved')
+    return { success: true }
+  }
+})
+
+ipcMain.handle('set-ai-provider', (_, provider) => {
+  if (provider === 'anthropic' || provider === 'gemini') {
+    saveConfig({ aiProvider: provider })
+    aiProvider = provider
+    if (mainWindow && !mainWindow.isDestroyed())
+      mainWindow.webContents.send('ai-key-saved')
+    return { success: true }
+  }
+  return { success: false, error: 'Invalid provider' }
 })
 
 // ── Recent games window ───────────────────────────────────────────────────────
@@ -366,8 +407,10 @@ function saveConfig(patch) {
   try { fs.writeFileSync(configPath, JSON.stringify({ ...cfg, ...patch })) } catch {}
 }
 
-function initAI(apiKey) {
-  anthropicApiKey = apiKey?.trim() || null
+function initAI(cfg) {
+  anthropicApiKey = cfg.apiKey?.trim() || null
+  geminiApiKey = cfg.geminiApiKey?.trim() || null
+  aiProvider = cfg.aiProvider || 'anthropic'
 }
 
 // Direct HTTPS call to Anthropic API — no SDK needed
@@ -419,6 +462,70 @@ function callAnthropic({ systemText, userText, maxTokens }) {
     req.write(body)
     req.end()
   })
+}
+
+// Direct HTTPS call to Gemini API
+function callGemini({ systemText, userText, maxTokens }) {
+  return new Promise((resolve, reject) => {
+    if (!geminiApiKey) { resolve(null); return }
+    const body = JSON.stringify({
+      contents: [{
+        parts: [{ text: userText }]
+      }],
+      systemInstruction: {
+        parts: [{ text: systemText }]
+      },
+      generationConfig: {
+        maxOutputTokens: maxTokens
+      }
+    })
+    
+    const req = https.request({
+      hostname: 'generativelanguage.googleapis.com',
+      path: `/v1beta/models/gemini-2.5-flash:generateContent?key=${geminiApiKey}`,
+      method: 'POST',
+      timeout: 15000,
+      headers: {
+        'content-type': 'application/json',
+        'content-length': Buffer.byteLength(body),
+      },
+    }, (res) => {
+      let data = ''
+      res.on('data', c => data += c)
+      res.on('end', () => {
+        try {
+          const parsed = JSON.parse(data)
+          if (res.statusCode !== 200) {
+            const errMsg = parsed.error?.message || `HTTP ${res.statusCode}`
+            reject(new Error(errMsg))
+          } else {
+            const text = parsed.candidates?.[0]?.content?.parts?.[0]?.text
+            resolve(text?.trim() ?? null)
+          }
+        }
+        catch (err) { reject(new Error('Failed to parse API response: ' + err.message)) }
+      })
+    })
+    req.on('timeout', () => { req.destroy(); reject(new Error('Request timed out after 15 seconds')) })
+    req.on('error', (e) => {
+      let msg = e.message
+      if (msg.includes('CERT') || msg.includes('cert') || msg.includes('ssl')) {
+        msg = 'SSL Certificate Verification Error. Usually caused by an antivirus, firewall, proxy, or VPN.'
+      }
+      reject(new Error(msg))
+    })
+    req.write(body)
+    req.end()
+  })
+}
+
+// Routing wrapper
+function callAI({ systemText, userText, maxTokens }) {
+  if (aiProvider === 'gemini') {
+    return callGemini({ systemText, userText, maxTokens })
+  } else {
+    return callAnthropic({ systemText, userText, maxTokens })
+  }
 }
 
 // ── LCU helpers ───────────────────────────────────────────────────────────────
@@ -729,7 +836,7 @@ function createWindow() {
   const cfg = loadConfig()
   const { width: screenWidth } = screen.getPrimaryDisplay().workAreaSize
 
-  initAI(cfg.apiKey)
+  initAI(cfg)
 
   mainWindow = new BrowserWindow({
     width: 900,
@@ -1030,7 +1137,7 @@ ipcMain.handle('get-champ-kit',    () => currentChampKit)
 
 ipcMain.handle('ai-postgame', async (event, prompt) => {
   try {
-    return await callAnthropic({
+    return await callAI({
       systemText: 'You are a League of Legends post-game coach. Analyze why the player won or lost based on their stats and key events. Give 3-4 specific sentences. Identify the single most important factor and one concrete thing to improve next game. Reference their champion, role, and actual numbers. No fluff. No markdown, no asterisks, no bold formatting — plain text only.',
       userText: prompt, maxTokens: 200,
     })
@@ -1038,7 +1145,11 @@ ipcMain.handle('ai-postgame', async (event, prompt) => {
 })
 
 ipcMain.handle('get-version',  () => app.getVersion())
-ipcMain.handle('has-api-key',  () => !!loadConfig().apiKey)
+ipcMain.handle('has-api-key',  () => {
+  const cfg = loadConfig()
+  const provider = cfg.aiProvider || 'anthropic'
+  return provider === 'gemini' ? !!cfg.geminiApiKey : !!cfg.apiKey
+})
 
 ipcMain.handle('lcu-stats', async (_, { summonerId, championId }) => {
   if (!lcuPort || !lcuPass || !summonerId) return null
@@ -1084,8 +1195,8 @@ ipcMain.handle('lcu-stats', async (_, { summonerId, championId }) => {
 
 ipcMain.handle('save-api-key', (event, key) => {
   const trimmed = key.trim()
-  saveConfig({ apiKey: trimmed })
-  initAI(trimmed)
+  saveConfig({ apiKey: trimmed, aiProvider: 'anthropic' })
+  initAI(loadConfig())
   return true
 })
 
@@ -1096,12 +1207,13 @@ function trimToSentence(text) {
 }
 
 ipcMain.handle('ai-coaching', async (event, prompt) => {
-  if (!anthropicApiKey) return null
+  const hasKey = aiProvider === 'gemini' ? !!geminiApiKey : !!anthropicApiKey
+  if (!hasKey) return null
   const now = Date.now()
   if (now - lastAICallTime < 5000) return null
   lastAICallTime = now
   try {
-    return trimToSentence(await callAnthropic({
+    return trimToSentence(await callAI({
       systemText: 'You are a League of Legends in-game coach. Give 1-2 specific actionable sentences tailored to the player\'s champion, role, and current state. Focus on macro play, win conditions, positioning, build adjustments, and objective control. Analyze the enemy team composition/items to suggest counter items (e.g. Magic Resist, Anti-heal, Pen) when appropriate. Be aware of game momentum (recent events). On death, analyze the killer\'s details to recommend defensive pivots. Never suggest objectives or events that have already passed. Name champions. No fluff, no markdown. Max 50 words.',
       userText: prompt, maxTokens: 120,
     }))
@@ -1110,7 +1222,7 @@ ipcMain.handle('ai-coaching', async (event, prompt) => {
 
 ipcMain.handle('ai-game-start', async (event, prompt) => {
   try {
-    const responseText = await callAnthropic({
+    const responseText = await callAI({
       systemText: 'You are a League of Legends in-game coach giving a game plan at match start. Analyze the matchup and return a JSON object with exactly two keys:\n1. "advice": A string of exactly 2 sentences: one laning strategy based on the champion\'s general playstyle and matchup, one win condition. Focus on macro patterns. Avoid referencing specific ability names. If player intel with ranks is included, call out high-elo threats by name.\n2. "targetCS": A number representing the recommended target CS per minute for this matchup (e.g., between 5.0 and 9.5). Default to 7.0 if unsure.\nReturn ONLY the JSON object. Do not include markdown formatting or wrapper text.',
       userText: prompt, maxTokens: 200,
     })
@@ -1140,7 +1252,7 @@ ipcMain.handle('ai-game-start', async (event, prompt) => {
 
 ipcMain.handle('ai-champ-select', async (event, prompt) => {
   try {
-    return await callAnthropic({
+    return await callAI({
       systemText: 'You are a League of Legends champion select coach. Recommend exactly 3 champions for the given role. Format your response as exactly 3 lines: "1. ChampName — reason" where reason is under 10 words. Consider enemy comp and ally synergy. Be specific.',
       userText: prompt, maxTokens: 160,
     })

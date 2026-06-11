@@ -6,10 +6,10 @@ const TIMELINE_ALERTS = [
   { time: 5,    msg: 'Focus CS — target 7+ per minute',                        cat: 'farming',   pri: 'normal'  },
   { time: 65,   msg: 'Freeze when behind — let them push into you',             cat: 'wave',      pri: 'normal'  },
 
-  // ── Scuttlecrab (3:30) ──────────────────────────────────────────────────
-  { time: 195,  msg: '⚠ Scuttler spawns in 15s — watch river',                cat: 'objective', pri: 'warning' },
-  { time: 210,  msg: 'Scuttler up (3:30) — jungler heading to river',          cat: 'gank',      pri: 'warning' },
-  { time: 225,  msg: '⚠ First gank window open — ward river bush now',        cat: 'vision',    pri: 'warning' },
+  // ── Scuttlecrab (2:55) ──────────────────────────────────────────────────
+  { time: 160,  msg: '⚠ Scuttler spawns in 15s — watch river',                cat: 'objective', pri: 'warning' },
+  { time: 175,  msg: 'Scuttler up (2:55) — jungler heading to river',          cat: 'gank',      pri: 'warning' },
+  { time: 190,  msg: '⚠ First gank window open — ward river bush now',        cat: 'vision',    pri: 'warning' },
 
   // ── Dragon (5:00) ───────────────────────────────────────────────────────
   { time: 270,  msg: '🐉 Dragon spawns in 30s — clear wave first',            cat: 'objective', pri: 'warning' },

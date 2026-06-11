@@ -128,7 +128,7 @@ function isCoachStatementRelevant(text, apiElapsedTime = 0) {
         console.log(`[Relevance Filter] Rejected dragon advice: dragon is already alive, but AI said: "${text}"`);
         return false;
       }
-      if (Math.abs(dragonLeft - mentionedTimeSec) > 35) {
+      if (Math.abs(dragonLeft - mentionedTimeSec) > 15) {
         console.log(`[Relevance Filter] Rejected dragon advice: dragon spawns in ${Math.round(dragonLeft)}s, but AI said relative ${mentionedTimeSec}s: "${text}"`);
         return false;
       }
@@ -154,7 +154,7 @@ function isCoachStatementRelevant(text, apiElapsedTime = 0) {
         console.log(`[Relevance Filter] Rejected baron advice: baron is already alive, but AI said: "${text}"`);
         return false;
       }
-      if (Math.abs(baronLeft - mentionedTimeSec) > 45) {
+      if (Math.abs(baronLeft - mentionedTimeSec) > 20) {
         console.log(`[Relevance Filter] Rejected baron advice: baron spawns in ${Math.round(baronLeft)}s, but AI said relative ${mentionedTimeSec}s: "${text}"`);
         return false;
       }
@@ -246,6 +246,7 @@ function freshState() {
     roamAlerts: new Set(),
     laneOpponentWasDead: false,
     opponentPrevItems: [],
+    prevEnemyStats: {},
     jungler: {
       name: null, champion: null, level: 1,
       isDead: false, lastSeenTime: 0, lastSeenSide: null,
@@ -364,6 +365,7 @@ window.lolCoach.onGameData((data) => {
   state.gameTime   = gameData.gameTime
   state.allPlayers = allPlayers
   state.currentGold = activePlayer.currentGold ?? 0
+  trackEnemyVisibility(allPlayers, gameData.gameTime)
 
   if (state.gamePlanShowing && gameData.gameTime > 15) {
     state.gamePlanShowing = false
@@ -942,7 +944,7 @@ function updateJungler(gameTime, allPlayers, myTeam) {
     // Note: game plan (Feature 2) fires first via requestGamePlan() in the team comp block
     // This focus message shows if no game plan was fired (AI not enabled)
     if (!state.gamePlanFired) {
-      setFocus(`Enemy JG: ${j.championName} — first gank ~3:30`, false)
+      setFocus(`Enemy JG: ${j.championName} — first gank ~2:55`, false)
     }
     return
   }
@@ -961,7 +963,7 @@ function updateJungler(gameTime, allPlayers, myTeam) {
   if (!j.isDead) {
     const unseen      = gameTime - state.jungler.lastSeenTime
     const sinceWarned = gameTime - state.jungler.unseenAlertAt
-    const scuttleWin  = gameTime >= 180 && gameTime <= 270
+    const scuttleWin  = gameTime >= 160 && gameTime <= 230
     if (unseen > 90 && gameTime > 300) {
       setJunglerThreat('danger')
       if (sinceWarned > 150) {
@@ -971,7 +973,7 @@ function updateJungler(gameTime, allPlayers, myTeam) {
         speak(`${state.jungler.champion} missing. Ward up!`, true)
         state.jungler.unseenAlertAt = gameTime
       }
-    } else if (scuttleWin || (gameTime >= 180 && gameTime <= 240)) {
+    } else if (scuttleWin || (gameTime >= 160 && gameTime <= 210)) {
       setJunglerThreat('warning')
     } else {
       setJunglerThreat(null)
@@ -1076,31 +1078,38 @@ async function requestAICoaching(trigger) {
   const vsOpponentDelta = state.cs - oppCSNum
   const vsOpponentStr = opponent ? `, vs Lane Opponent: ${vsOpponentDelta >= 0 ? '+' : ''}${vsOpponentDelta} CS` : ''
 
-  // Threat-based scanning: summarize enemy builds & stats
-  const enemyItemsSummary = state.allPlayers
+  const allySummary = state.allPlayers
+    .filter(p => me && p.team === me.team && !matchName(p.summonerName, state.activeName))
+    .map(p => {
+      const status = p.isDead ? `DEAD (respawns in ${Math.ceil(p.respawnTimer)}s)` : 'ALIVE'
+      const kda = `${p.scores?.kills ?? 0}/${p.scores?.deaths ?? 0}/${p.scores?.assists ?? 0}`
+      return `${p.championName} (${p.position ?? 'unknown'}, ${status}, KDA: ${kda})`
+    })
+    .join(' | ')
+
+  const enemySummary = state.allPlayers
     .filter(p => me && p.team !== me.team)
     .map(p => {
-      const pItems = p.items?.map(i => i.displayName).filter(Boolean).join(', ') || 'none'
-      const kda = `${p.scores?.kills ?? 0} Kills / ${p.scores?.deaths ?? 0} Deaths / ${p.scores?.assists ?? 0} Assists`
-      return `${p.championName} (KDA: ${kda}, Items: ${pItems})`
+      const status = p.isDead ? `DEAD (respawns in ${Math.ceil(p.respawnTimer)}s)` : 'ALIVE'
+      const items = p.items?.map(i => i.displayName).filter(Boolean).join(', ') || 'none'
+      const kda = `${p.scores?.kills ?? 0}/${p.scores?.deaths ?? 0}/${p.scores?.assists ?? 0}`
+      const cs = p.scores?.creepScore ?? 0
+      return `${p.championName} (${p.position ?? 'unknown'}, ${status}, KDA: ${kda}, CS: ${cs}, Items: ${items})`
     })
     .join(' | ')
 
   const lines = [
     `My champion: ${state.myChampion ?? '?'}${state.isARAM ? ' (ARAM)' : ` (${state.myPosition ?? '?'})`} — ${phase} game (${fmtTime(state.gameTime)})`,
     champKit ? `Current kit (live patch): ${champKit}` : '',
-    `Ally team:  ${state.allyTeam.join(', ') || 'unknown'}`,
-    `Enemy team: ${state.enemyTeam.join(', ') || 'unknown'}`,
     scoutCtx ?? '',
-    `Player Stats: ${state.kills} Kills / ${state.deaths} Deaths / ${state.assists} Assists | Level: ${myLvl} | CS: ${state.cs} (vs Target Pace: ${delta >= 0 ? '+' : ''}${delta} CS${vsOpponentStr})`,
-    opponent ? `Lane opponent (${opponent.championName}): Level ${oppLvl} | CS ${oppCS}` : '',
+    `My Status: ${state.kills}/${state.deaths}/${state.assists} | Level: ${myLvl} | CS: ${state.cs} (vs Target Pace: ${delta >= 0 ? '+' : ''}${delta} CS${vsOpponentStr}) | Items: ${myItems.join(', ') || 'none'}`,
+    `Allies Status: ${allySummary || 'none'}`,
+    `Enemies Status: ${enemySummary || 'none'}`,
     ...(!state.isARAM ? [
       `Drakes: Ally ${state.allyDrakes} · Enemy ${state.enemyDrakes}`,
       `Enemy JG: ${j.champion ?? '?'} — ${jgStatus}`,
       objParts.join(' | '),
     ] : []),
-    `My items: ${myItems.join(', ') || 'none'}`,
-    `Enemy Items/KDA: ${enemyItemsSummary || 'unknown'}`,
     `Recent Alerts: ${recentEvts}`,
     `Recent Game Events: ${state.recentGameEvents?.join(' | ') || 'None'}`,
   ].filter(Boolean)
@@ -1135,8 +1144,66 @@ async function requestAICoaching(trigger) {
 }
 
 
+// ── Enemy Visibility Tracker ──────────────────────────────────────────────────
+function trackEnemyVisibility(allPlayers, gameTime) {
+  const me = allPlayers.find(p => matchName(p.summonerName, state.activeName))
+  if (!me) return
+
+  allPlayers.forEach(p => {
+    if (p.team === me.team) return // only track enemies
+
+    const name = p.summonerName
+    const currentCS = p.scores?.creepScore ?? 0
+    const currentLvl = p.level ?? 1
+    const currentKills = p.scores?.kills ?? 0
+    const currentDeaths = p.scores?.deaths ?? 0
+    const currentAssists = p.scores?.assists ?? 0
+    const currentHP = p.stats?.currentHealth ?? 0
+    const currentItems = (p.items ?? []).map(i => i.itemID).join(',')
+
+    const prev = state.prevEnemyStats[name]
+    let visible = false
+
+    if (prev) {
+      if (currentCS !== prev.cs ||
+          currentLvl !== prev.level ||
+          currentKills !== prev.kills ||
+          currentDeaths !== prev.deaths ||
+          currentAssists !== prev.assists ||
+          Math.abs(currentHP - prev.hp) > 0.01 ||
+          currentItems !== prev.items) {
+        visible = true
+      }
+    } else {
+      // First time seeing them in this session
+      visible = true
+    }
+
+    // Update cache
+    state.prevEnemyStats[name] = {
+      cs: currentCS,
+      level: currentLvl,
+      kills: currentKills,
+      deaths: currentDeaths,
+      assists: currentAssists,
+      hp: currentHP,
+      items: currentItems
+    }
+
+    if (visible && !p.isDead) {
+      state.enemyLastSeen[name] = gameTime
+
+      // If this is the enemy jungler, update jungler tracking too
+      if (state.jungler.name && matchName(name, state.jungler.name)) {
+        state.jungler.lastSeenTime = gameTime
+        setJunglerThreat(null)
+      }
+    }
+  })
+}
+
 // ── Missing laner tracker ─────────────────────────────────────────────────────
-const MISSING_THRESHOLD = { MIDDLE: 150, TOP: 210, BOTTOM: 210, UTILITY: 210 }
+const MISSING_THRESHOLD = { MIDDLE: 25, TOP: 35, BOTTOM: 35, UTILITY: 35 }
 
 function checkMissingLaners(allPlayers, myTeam, me, gameTime) {
   if (!myTeam || !me || gameTime < 180) return

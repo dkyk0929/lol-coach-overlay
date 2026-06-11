@@ -413,32 +413,38 @@ function initAI(cfg) {
   aiProvider = cfg.aiProvider || 'anthropic'
 }
 
-let itemRulesCached = null
-function getItemRulesText() {
-  if (itemRulesCached !== null) return itemRulesCached
+let gameRulesCached = null
+function getGameRulesText() {
+  if (gameRulesCached !== null) return gameRulesCached
   try {
-    const filePath = path.join(__dirname, 'src', 'data', 'item_rules.json')
+    const filePath = path.join(__dirname, 'src', 'data', 'game_rules.json')
     if (fs.existsSync(filePath)) {
       const data = JSON.parse(fs.readFileSync(filePath, 'utf8'))
       const rules = []
-      if (data.season) rules.push(`Current Season: ${data.season}`)
+      if (data.patch) rules.push(`Current Patch: ${data.patch}`)
       if (data.removed_items && data.removed_items.length > 0) {
-        rules.push(`REMOVED ITEMS (DO NOT suggest or mention these under any circumstances): ${data.removed_items.join(', ')}`)
+        rules.push(`REMOVED ITEMS (DO NOT suggest or mention these): ${data.removed_items.join(', ')}`)
       }
       if (data.replaced_or_renamed && data.replaced_or_renamed.length > 0) {
         rules.push(`REPLACED OR RENAMED ITEMS: ${data.replaced_or_renamed.join(', ')}`)
       }
       if (data.new_items_introduced && data.new_items_introduced.length > 0) {
-        rules.push(`NEW ITEMS IN CURRENT META (Preferred recommendations): ${data.new_items_introduced.join(', ')}`)
+        rules.push(`NEW ITEMS IN CURRENT META: ${data.new_items_introduced.join(', ')}`)
       }
-      if (data.notes && data.notes.length > 0) {
-        rules.push(`Additional itemization constraints: ${data.notes.join(' ')}`)
+      if (data.objective_spawn_rules && data.objective_spawn_rules.length > 0) {
+        rules.push(`OBJECTIVE TIMINGS: ${data.objective_spawn_rules.join(' | ')}`)
       }
-      itemRulesCached = '\n\n' + rules.join('\n')
-      return itemRulesCached
+      if (data.champion_reworks && data.champion_reworks.length > 0) {
+        rules.push(`CHAMPION REWORKS INFO: ${data.champion_reworks.join(' | ')}`)
+      }
+      if (data.general_notes && data.general_notes.length > 0) {
+        rules.push(`ADDITIONAL RULES & CONSTRAINTS: ${data.general_notes.join(' ')}`)
+      }
+      gameRulesCached = '\n\n' + rules.join('\n')
+      return gameRulesCached
     }
   } catch (e) {
-    console.error('Failed to load item rules:', e.message)
+    console.error('Failed to load game rules:', e.message)
   }
   return ''
 }
@@ -1176,7 +1182,7 @@ ipcMain.handle('ai-postgame', async (event, prompt) => {
 
   try {
     return await callAI({
-      systemText: 'You are a League of Legends post-game coach. Analyze why the player won or lost based on their stats and key events. Give 3-4 specific sentences. Identify the single most important factor and one concrete thing to improve next game. Reference their champion, role, and actual numbers. No fluff. No markdown, no asterisks, no bold formatting — plain text only.' + getItemRulesText(),
+      systemText: 'You are a League of Legends post-game coach. Analyze why the player won or lost based on their stats and key events. Give 3-4 specific sentences. Identify the single most important factor and one concrete thing to improve next game. Reference their champion, role, and actual numbers. No fluff. No markdown, no asterisks, no bold formatting — plain text only.' + getGameRulesText(),
       userText: prompt, maxTokens: 200,
     })
   } catch (e) {
@@ -1255,7 +1261,7 @@ ipcMain.handle('ai-coaching', async (event, prompt) => {
   lastAICallTime = now
   try {
     return trimToSentence(await callAI({
-      systemText: 'You are a League of Legends in-game coach. Give 1-2 specific actionable sentences tailored to the player\'s champion, role, and current state. Focus on macro play, win conditions, positioning, build adjustments, and objective control. Analyze the enemy team composition/items to suggest counter items (e.g. Magic Resist, Anti-heal, Pen) when appropriate. NEVER recommend buying or building an item that is already listed in the player\'s inventory (\'My items\'). Be aware of game momentum (recent events). On death, analyze the killer\'s details to recommend defensive pivots. Never suggest objectives or events that have already passed. Name champions. No fluff, no markdown. Max 50 words.' + getItemRulesText(),
+      systemText: 'You are a League of Legends in-game coach. Give 1-2 specific actionable sentences tailored to the player\'s champion, role, and current state. Focus on macro play, win conditions, positioning, build adjustments, and objective control. Analyze the enemy team composition/items to suggest counter items (e.g. Magic Resist, Anti-heal, Pen) when appropriate. NEVER recommend buying or building an item that is already listed in the player\'s inventory (\'My items\'). Be aware of game momentum (recent events). On death, analyze the killer\'s details to recommend defensive pivots. Never suggest objectives or events that have already passed. Name champions. No fluff, no markdown. Max 50 words.' + getGameRulesText(),
       userText: prompt, maxTokens: 120,
     }))
   } catch (e) { console.error('AI coaching error:', e.message); return null }
@@ -1269,7 +1275,7 @@ ipcMain.handle('ai-game-start', async (event, prompt) => {
 
   try {
     const responseText = await callAI({
-      systemText: 'You are a League of Legends in-game coach giving a game plan at match start. Analyze the matchup and return a JSON object with exactly two keys:\n1. "advice": A string of exactly 2 sentences: one laning strategy based on the champion\'s general playstyle and matchup, one win condition. Focus on macro patterns. Avoid referencing specific ability names. If player intel with ranks is included, call out high-elo threats by name.\n2. "targetCS": A number representing the recommended target CS per minute for this matchup (e.g., between 5.0 and 9.5). Default to 7.0 if unsure.\nReturn ONLY the JSON object. Do not include markdown formatting or wrapper text.' + getItemRulesText(),
+      systemText: 'You are a League of Legends in-game coach giving a game plan at match start. Analyze the matchup and return a JSON object with exactly two keys:\n1. "advice": A string of exactly 2 sentences: one laning strategy based on the champion\'s general playstyle and matchup, one win condition. Focus on macro patterns. Avoid referencing specific ability names. If player intel with ranks is included, call out high-elo threats by name.\n2. "targetCS": A number representing the recommended target CS per minute for this matchup (e.g., between 5.0 and 9.5). Default to 7.0 if unsure.\nReturn ONLY the JSON object. Do not include markdown formatting or wrapper text.' + getGameRulesText(),
       userText: prompt, maxTokens: 200,
     })
     if (!responseText) return null
@@ -1307,7 +1313,7 @@ ipcMain.handle('ai-champ-select', async (event, prompt) => {
 
   try {
     return await callAI({
-      systemText: 'You are a League of Legends champion select coach. Recommend exactly 3 champions for the given role. Format your response as exactly 3 lines: "1. ChampName — reason" where reason is under 10 words. Consider enemy comp and ally synergy. Be specific.' + getItemRulesText(),
+      systemText: 'You are a League of Legends champion select coach. Recommend exactly 3 champions for the given role. Format your response as exactly 3 lines: "1. ChampName — reason" where reason is under 10 words. Consider enemy comp and ally synergy. Be specific.' + getGameRulesText(),
       userText: prompt, maxTokens: 160,
     })
   } catch (e) {

@@ -1,6 +1,7 @@
 {
   "patch": "Patch 26.12 (Season 16, June 2026)",
   "removed_items": [
+    "Luden's Companion",
     "Everfrost",
     "Crown of the Shattered Queen",
     "Duskblade of Draktharr",
@@ -20,10 +21,12 @@
     "Lifewell Pendant"
   ],
   "replaced_or_renamed": [
-    "Luden's Tempest -> Luden's Companion",
+    "Luden's Tempest -> Luden's Echo",
+    "Luden's Companion -> Luden's Echo",
     "Liandry's Anguish -> Liandry's Torment"
   ],
   "new_items_introduced": [
+    "Luden's Echo (AP/Mana/Haste - replaces Luden's Companion)",
     "Malignance (AP/Mana/Ult Haste for AP casters)",
     "Stormsurge (AP Burst/Flat Pen)",
     "Cryptbloom (AP/Magic Pen/Team Healing on kill)",

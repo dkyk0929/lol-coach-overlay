@@ -52,8 +52,8 @@
     "Jungle Camps: Buffs, Wolves, Raptors spawn at 55 seconds (previously 1:30). Krugs/Gromp spawn at 1:07. First gank window is 2:55 - 3:10.",
     "River Scuttle Crab: Spawns at 2:55 (previously 3:30).",
     "Dragon: First spawn at 5:00. Respawns every 5 minutes. Elder Dragon spawns 6 minutes after a team gets Dragon Soul.",
-    "Void Grubs: REMOVED in Season 2026. No longer spawns.",
-    "Rift Herald: REMOVED in Season 2026. No longer spawns.",
+    "Void Grubs: Spawns exactly ONCE per game at 8:00 (camp of 3 grubs, does NOT respawn, despawns at 13:45). Contesting grubs is highly valuable for top/jg.",
+    "Rift Herald: Spawns exactly ONCE per game at 15:00 (despawns at 19:30). Can be ridden to charge towers.",
     "Atakhan: REMOVED in Season 2026. No longer spawns.",
     "Baron Nashor: Spawns at 20:00. Respawns 6 minutes after being killed. Pit terrain changes depending on the Baron variant."
   ],
@@ -80,7 +80,8 @@
     "The Mythic item system was removed. All items are Legendary, Epic, or Basic.",
     "Be extremely precise with timing. If an objective is spawning soon, use the exact time remaining provided in the prompt (e.g., 'spawning in 5 seconds' or 'alive now'), do not make up or approximate timings.",
     "Never suggest buying or building removed items or mythics.",
-    "Void Grubs, Rift Herald, and Atakhan are REMOVED in Season 2026. Never reference them as objectives.",
+    "Atakhan is REMOVED in Season 2026. Never reference Atakhan as an objective.",
+    "Always assume Void Grubs spawn at 8:00 only once, and Rift Herald at 15:00 only once.",
     "Dragon spawns at 5:00 and respawns every 5 minutes. Baron spawns at 20:00 and respawns 6 minutes after kill."
   ]
 }

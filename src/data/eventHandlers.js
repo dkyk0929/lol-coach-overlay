@@ -44,6 +44,12 @@ function handleGameEvent(event, activeName, allPlayers) {
       return             { msg: stolen ? '🟣 Baron stolen! Push now'   : '🟣 Allied Baron — group and push',   cat: 'macro', pri: 'urgent' }
     }
 
+    case 'RiftHeraldKill': {
+      const ally = isAlly(event.KillerName)
+      if (!ally) return { msg: '⚔ Enemy Herald — expect tower dive', cat: 'macro', pri: 'warning' }
+      return             { msg: '⚔ Allied Herald! Use it on a tower', cat: 'macro', pri: 'normal' }
+    }
+
     case 'TurretKilled':
       return { msg: '🏰 Tower down — crash wave into next tower', cat: 'wave', pri: 'normal' }
 

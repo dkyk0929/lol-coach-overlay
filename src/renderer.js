@@ -755,7 +755,7 @@ function checkEvents(events, activeName, allPlayers, myTeam) {
       evDesc = `[${fmtTime(ev.EventTime)}] ${ev.KillerName} killed ${ev.VictimName}`
     } else if (ev.EventName === 'TurretKilled') {
       evDesc = `[${fmtTime(ev.EventTime)}] Turret destroyed by ${ev.KillerName || 'minions'}`
-    } else if (ev.EventName === 'DragonKill' || ev.EventName === 'BaronKill') {
+    } else if (ev.EventName === 'DragonKill' || ev.EventName === 'BaronKill' || ev.EventName === 'RiftHeraldKill') {
       evDesc = `[${fmtTime(ev.EventTime)}] ${ev.EventName.replace('Kill', '')} taken by ${ev.KillerName}`
     } else if (ev.EventName === 'InhibKilled') {
       evDesc = `[${fmtTime(ev.EventTime)}] Inhibitor destroyed by ${ev.KillerName}`
@@ -847,7 +847,7 @@ function checkEvents(events, activeName, allPlayers, myTeam) {
       if (matchName(ev.VictimName, jn)) state.jungler.lastSeenTime = ev.EventTime
     }
 
-    if (!state.isARAM && ['DragonKill','BaronKill'].includes(ev.EventName) &&
+    if (!state.isARAM && ['DragonKill','BaronKill','RiftHeraldKill'].includes(ev.EventName) &&
         state.jungler.name && matchName(ev.KillerName, state.jungler.name)) {
       state.jungler.lastSeenTime = ev.EventTime
       state.jungler.lastSeenSide = 'objective'
@@ -893,7 +893,7 @@ const WAVE_HINTS = [
 ]
 
 const SUPPORT_HINTS = [
-  { time: 480,  msg: 'Ward enemy jungle paths — Dragon fight incoming at 5:00', done: false },
+  { time: 480,  msg: 'Ward enemy jungle paths — Herald and Dragon fights incoming', done: false },
   { time: 840,  msg: 'Buy Control Ward on every back — keep river vision up',  done: false },
   { time: 1080, msg: 'Roam mid when ADC shoves — look for picks with JG',      done: false },
   { time: 1380, msg: 'Zone enemies off Baron with vision before your team engages', done: false },

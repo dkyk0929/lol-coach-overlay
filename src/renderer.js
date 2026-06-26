@@ -704,7 +704,7 @@ function checkRespawnAlerts(gameTime) {
 
   // Dragon respawns (first spawn at 300s handled by TIMELINE_ALERTS)
   const dSpawn = state.nextDragonSpawn
-  if (dSpawn > 300) {
+  if (dSpawn >= 300) {
     const dLeft = dSpawn - gameTime
     const d30 = `d-${dSpawn}-30`, d15 = `d-${dSpawn}-15`, d0 = `d-${dSpawn}-0`
     if (!state.respawnAlerted.has(d30) && dLeft <= 30 && dLeft > 15) {
@@ -724,7 +724,7 @@ function checkRespawnAlerts(gameTime) {
 
   // Baron respawns (first spawn at 1200s handled by TIMELINE_ALERTS)
   const bSpawn = state.nextBaronSpawn
-  if (bSpawn > 1200) {
+  if (bSpawn >= 1200) {
     const bLeft = bSpawn - gameTime
     const b50 = `b-${bSpawn}-50`, b15 = `b-${bSpawn}-15`, b0 = `b-${bSpawn}-0`
     if (!state.respawnAlerted.has(b50) && bLeft <= 50 && bLeft > 35) {

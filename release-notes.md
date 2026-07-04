@@ -1,3 +1,8 @@
+## LoL Coach Overlay v1.8.3 - Update Checker
+
+### New Features
+- **Update checker**: on launch, the app now checks GitHub for the latest release and shows a popup ("A new version is available: vX.X.X — you have vX.X.X") with "Download Update" / "Later" buttons if you're behind. Fails silently if offline so it never blocks startup.
+
 ## LoL Coach Overlay v1.8.2 - Timer Fixes & Smarter Jungler/Recall Tracking
 
 ### Bug Fixes

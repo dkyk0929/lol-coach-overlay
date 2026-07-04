@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain, screen, globalShortcut, shell, Tray, Menu, nativeImage, net } = require('electron')
+const { app, BrowserWindow, ipcMain, screen, globalShortcut, shell, Tray, Menu, nativeImage, net, dialog } = require('electron')
 const { uIOhook, UiohookKey } = require('uiohook-napi')
 
 app.commandLine.appendSwitch('autoplay-policy', 'no-user-gesture-required')
@@ -939,6 +939,65 @@ function createNotifWindow() {
 }
 
 
+// ── Update checker ────────────────────────────────────────────────────────────
+function fetchLatestRelease() {
+  return new Promise((resolve, reject) => {
+    const req = https.request({
+      hostname: 'api.github.com',
+      path: '/repos/dkyk0929/lol-coach-overlay/releases/latest',
+      method: 'GET',
+      headers: { 'User-Agent': 'lol-coach-overlay' },
+      timeout: 5000,
+    }, (res) => {
+      let data = ''
+      res.on('data', chunk => data += chunk)
+      res.on('end', () => {
+        try { resolve(JSON.parse(data)) } catch { reject(new Error('Invalid JSON')) }
+      })
+    })
+    req.on('timeout', () => { req.destroy(); reject(new Error('Timeout')) })
+    req.on('error', reject)
+    req.end()
+  })
+}
+
+// Returns true if `a` (e.g. "1.8.2") is newer than `b`
+function isNewerVersion(a, b) {
+  const pa = a.split('.').map(Number)
+  const pb = b.split('.').map(Number)
+  for (let i = 0; i < Math.max(pa.length, pb.length); i++) {
+    const na = pa[i] ?? 0, nb = pb[i] ?? 0
+    if (na !== nb) return na > nb
+  }
+  return false
+}
+
+async function checkForUpdate() {
+  try {
+    const release = await fetchLatestRelease()
+    const latestTag = (release?.tag_name ?? '').replace(/^v/, '')
+    if (!latestTag) return
+    const current = app.getVersion()
+    if (isNewerVersion(latestTag, current)) {
+      const { response } = await dialog.showMessageBox(mainWindow, {
+        type: 'info',
+        title: 'Update available',
+        message: `A new version is available: v${latestTag} (you have v${current})`,
+        detail: release.name || '',
+        buttons: ['Download Update', 'Later'],
+        defaultId: 0,
+        cancelId: 1,
+        noLink: true,
+      })
+      if (response === 0) {
+        shell.openExternal(release.html_url || 'https://github.com/dkyk0929/lol-coach-overlay/releases/latest')
+      }
+    }
+  } catch (e) {
+    console.error('Update check failed:', e.message)
+  }
+}
+
 function fetchGameData() {
   return new Promise((resolve, reject) => {
     const req = https.request({
@@ -1347,6 +1406,7 @@ app.whenReady().then(() => {
   createTray()
   loadChampionMap()   // pre-load so names are ready before champ select opens
   startLCUPolling()
+  checkForUpdate()
 
   // globalShortcut uses RegisterHotKey which LoL's DirectInput bypasses.
   // uiohook-napi uses a low-level OS hook (WH_KEYBOARD_LL) that fires first.

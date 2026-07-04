@@ -14,6 +14,7 @@ contextBridge.exposeInMainWorld('lolCoach', {
   showCenterNotif:    (msg, pri) => ipcRenderer.send('show-center-notif', { msg, pri }),
   dismissCenterNotif:  ()        => ipcRenderer.send('dismiss-center-notif'),
   onJgPing:            (cb)     => ipcRenderer.on('jg-ping', () => cb()),
+  onLanePing:          (cb)     => ipcRenderer.on('lane-ping', (_, position) => cb(position)),
   saveGameResult:      (data)   => ipcRenderer.invoke('save-game-result', data),
   loadSessionHistory:  ()       => ipcRenderer.invoke('load-session-history'),
   loadAlertSettings:   ()       => ipcRenderer.invoke('load-alert-settings'),

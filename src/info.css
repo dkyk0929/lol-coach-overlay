@@ -94,6 +94,44 @@ body {
   margin-bottom: 14px;
 }
 
+.hotkeys-section {
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  padding: 8px 12px;
+  margin-bottom: 12px;
+  background: rgba(243, 198, 111, 0.03);
+}
+.hotkeys-title {
+  font-family: var(--font-mono);
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 1.5px;
+  color: var(--text-muted);
+  margin-bottom: 6px;
+}
+.hotkey-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 2px 0;
+}
+.hotkey-key {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--gold);
+  background: rgba(243, 198, 111, 0.1);
+  border: 1px solid var(--border-color);
+  border-radius: 3px;
+  padding: 1px 6px;
+  min-width: 22px;
+  text-align: center;
+}
+.hotkey-desc {
+  font-size: 11px;
+  color: var(--text-primary);
+}
+
 .links-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;

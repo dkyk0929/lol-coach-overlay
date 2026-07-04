@@ -1,3 +1,19 @@
+## LoL Coach Overlay v1.8.2 - Timer Fixes & Smarter Jungler/Recall Tracking
+
+### Bug Fixes
+- Fixed duplicate Dragon/Baron "spawns in Xs" alerts firing twice for the first spawn of each (checkRespawnAlerts vs. TIMELINE_ALERTS overlap).
+- Fixed missing-laner detection being silently disabled — the added enemy-visibility tracker relied on CS/level/HP/items, which the Live Client API reports regardless of true fog-of-war visibility, so it never actually detected "missing." Removed it and restored working timeout thresholds.
+- Fixed Rift Herald despawn time listed as 19:30 in AI game-rules context; correct value is 19:45.
+- Fixed Elder Dragon respawn timer running 60s fast — it now correctly adds 6 minutes (not 5) after Dragon Soul is claimed.
+- Fixed the all-in situational badge for Jungle role — it was comparing the enemy jungler against themselves (since "my position" resolves to JUNGLE, matching the same player used for the jungler-safety check), making the badge meaningless. Now hidden for Jungle since there's no lane-opponent concept to base it on.
+
+### New Features
+- **Enemy recall detection**: a new item appearing on any enemy (only possible at base) now triggers an immediate alert — sharper jungler "recalled, ward before they return" warnings and proactive "recalled — push the wave" alerts for other lanes, instead of waiting on a blind timeout.
+- **Objective-proximity jungler heads-up**: when the enemy jungler hasn't been confirmed in 25+ seconds and Dragon/Baron/Void Grubs/Rift Herald is about to spawn, the app now warns that they're likely heading there.
+- **Manual lane pings (F5/F6/F7/F8)**: press to confirm you've personally spotted the enemy Top/Mid/Bot/Support on your own screen, resetting their missing-laner timer — same idea as the existing F9 jungler ping, since the API has no real vision data to draw from.
+- AI coaching prompt now includes a "recently recalled" status line so the AI can factor tempo/recall windows into its advice.
+- Added a Hotkeys reference section to the Info panel.
+
 ## LoL Coach Overlay v1.7.14 - Patch 26.13 Correction & Synchronization
 
 Synchronized objective timers, champion data, and items with League of Legends **Patch 26.13 (released June 24, 2026)**.

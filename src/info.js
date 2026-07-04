@@ -18,5 +18,5 @@ $('btn-gh').addEventListener('click', () => {
 window.infoWindow.getVersion().then((v) => {
   $('version-text').textContent = `v${v}`
 }).catch(() => {
-  $('version-text').textContent = 'v1.7.14'
+  $('version-text').textContent = 'v1.8.2'
 })

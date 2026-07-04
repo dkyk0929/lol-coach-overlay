@@ -1363,6 +1363,16 @@ app.whenReady().then(() => {
       mainWindow.webContents.send('jg-ping')
   })
 
+  // Manual lane pings — lets the player confirm a sighting with their own
+  // eyes/minimap, since the Live Client API has no fog-of-war visibility data.
+  const LANE_PING_KEYS = { F5: 'TOP', F6: 'MIDDLE', F7: 'BOTTOM', F8: 'UTILITY' }
+  for (const [key, position] of Object.entries(LANE_PING_KEYS)) {
+    globalShortcut.register(key, () => {
+      if (mainWindow && !mainWindow.isDestroyed())
+        mainWindow.webContents.send('lane-ping', position)
+    })
+  }
+
   globalShortcut.register('F12', () => {
     if (mainWindow && !mainWindow.isDestroyed()) {
       if (mainWindow.webContents.isDevToolsOpened()) mainWindow.webContents.closeDevTools()

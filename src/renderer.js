@@ -234,6 +234,9 @@ function freshState() {
     enemyDeadPrev: {},
     enemyLastSeen: {},
     missingAlertAt: {},
+    enemyItemSets: {},
+    recallAlertedAt: {},
+    objJgAlertedAt: {},
     csDeltaHistory: [],
     nextDragonSpawn: 300,
     nextBaronSpawn: 1200,
@@ -246,7 +249,6 @@ function freshState() {
     roamAlerts: new Set(),
     laneOpponentWasDead: false,
     opponentPrevItems: [],
-    prevEnemyStats: {},
     jungler: {
       name: null, champion: null, level: 1,
       isDead: false, lastSeenTime: 0, lastSeenSide: null,
@@ -320,7 +322,7 @@ window.lolCoach.getVersion().then(v => {
 
 // ── Window controls already wired above in controls hover zone ───────────────
 
-// ── Manual JG ping (Ctrl+J) ───────────────────────────────────────────────────
+// ── Manual JG ping (F9) ────────────────────────────────────────────────────────
 window.lolCoach.onJgPing(() => {
   if (!state.running || !state.jungler.name) return
   state.jungler.lastSeenTime  = state.gameTime
@@ -331,6 +333,21 @@ window.lolCoach.onJgPing(() => {
   setFocus(msg, false)
   window.lolCoach.showCenterNotif(msg, 'normal')
   speak(`${state.jungler.champion} spotted`, false)
+})
+
+// ── Manual lane pings (F5 Top / F6 Mid / F7 Bot / F8 Support) ────────────────
+window.lolCoach.onLanePing((position) => {
+  if (!state.running) return
+  const enemy = state.allPlayers.find(p => {
+    const me = state.allPlayers.find(pl => matchName(pl.summonerName, state.activeName))
+    return me && p.team !== me.team && p.position === position
+  })
+  if (!enemy) return
+  state.enemyLastSeen[enemy.summonerName] = state.gameTime
+  state.missingAlertAt[enemy.summonerName] = 0
+  const msg = `📍 ${enemy.championName} spotted — timer reset`
+  setFocus(msg, false)
+  speak(`${enemy.championName} spotted`, false)
 })
 
 
@@ -365,7 +382,6 @@ window.lolCoach.onGameData((data) => {
   state.gameTime   = gameData.gameTime
   state.allPlayers = allPlayers
   state.currentGold = activePlayer.currentGold ?? 0
-  trackEnemyVisibility(allPlayers, gameData.gameTime)
 
   if (state.gamePlanShowing && gameData.gameTime > 15) {
     state.gamePlanShowing = false
@@ -412,6 +428,7 @@ window.lolCoach.onGameData((data) => {
     checkRespawnAlerts(gameData.gameTime)
     checkWaveHints(gameData.gameTime)
     updateJungler(gameData.gameTime, allPlayers, me?.team)
+    checkEnemyRecalls(allPlayers, me?.team, gameData.gameTime, state.myPosition)
     checkMissingLaners(allPlayers, me?.team, me, gameData.gameTime)
     checkAllinWindow(level, me, allPlayers, gameData.gameTime)
     updateObjectiveCountdown(gameData.gameTime)
@@ -704,7 +721,7 @@ function checkRespawnAlerts(gameTime) {
 
   // Dragon respawns (first spawn at 300s handled by TIMELINE_ALERTS)
   const dSpawn = state.nextDragonSpawn
-  if (dSpawn >= 300) {
+  if (dSpawn > 300) {
     const dLeft = dSpawn - gameTime
     const d30 = `d-${dSpawn}-30`, d15 = `d-${dSpawn}-15`, d0 = `d-${dSpawn}-0`
     if (!state.respawnAlerted.has(d30) && dLeft <= 30 && dLeft > 15) {
@@ -724,7 +741,7 @@ function checkRespawnAlerts(gameTime) {
 
   // Baron respawns (first spawn at 1200s handled by TIMELINE_ALERTS)
   const bSpawn = state.nextBaronSpawn
-  if (bSpawn >= 1200) {
+  if (bSpawn > 1200) {
     const bLeft = bSpawn - gameTime
     const b50 = `b-${bSpawn}-50`, b15 = `b-${bSpawn}-15`, b0 = `b-${bSpawn}-0`
     if (!state.respawnAlerted.has(b50) && bLeft <= 50 && bLeft > 35) {
@@ -790,7 +807,9 @@ function checkEvents(events, activeName, allPlayers, myTeam) {
         }
       }
 
-      state.nextDragonSpawn = ev.EventTime + 300
+      // Elder Dragon spawns 6 min after Soul (4th drake by either team) instead of the usual 5 min
+      const soulJustClaimed = state.allyDrakes === 4 || state.enemyDrakes === 4
+      state.nextDragonSpawn = ev.EventTime + (soulJustClaimed ? 360 : 300)
 
       if (!stale && !killerIsAlly) {
         if (state.gameTime > 600 && state.allyDrakes < state.enemyDrakes) {
@@ -978,8 +997,33 @@ function updateJungler(gameTime, allPlayers, myTeam) {
     } else {
       setJunglerThreat(null)
     }
+    checkObjectiveJgProximity(gameTime, unseen)
   }
   renderJungler()
+}
+
+// Objectives draw junglers toward them before/around spawn — heads-up the
+// player when the enemy JG hasn't been confirmed recently and an objective
+// window is open, since that's exactly when a river/objective-area gank is likely.
+function checkObjectiveJgProximity(gameTime, unseen) {
+  if (state.isARAM || unseen < 25) return
+
+  const windows = [
+    { key: 'grubs',  start: 440,                        end: 495,                        label: 'Void Grubs' },
+    { key: 'herald', start: 860,                         end: 915,                        label: 'Rift Herald' },
+    { key: 'dragon', start: state.nextDragonSpawn - 35,  end: state.nextDragonSpawn + 25, label: 'Dragon'      },
+    { key: 'baron',  start: state.nextBaronSpawn  - 45,  end: state.nextBaronSpawn  + 25, label: 'Baron'       },
+  ]
+
+  for (const w of windows) {
+    if (gameTime < w.start || gameTime > w.end) continue
+    const lastAlert = state.objJgAlertedAt[w.key] ?? -999
+    if (gameTime - lastAlert < (w.end - w.start) + 5) continue
+    state.objJgAlertedAt[w.key] = gameTime
+    setJunglerThreat('warning')
+    pushAlert(`👀 ${state.jungler.champion} unaccounted for — likely near ${w.label}, be ready`, 'gank', 'warning')
+    speak(`Watch for ${state.jungler.champion} near ${w.label}`, false)
+  }
 }
 
 // ── Alert system ─────────────────────────────────────────────────────────────
@@ -1078,6 +1122,11 @@ async function requestAICoaching(trigger) {
   const vsOpponentDelta = state.cs - oppCSNum
   const vsOpponentStr = opponent ? `, vs Lane Opponent: ${vsOpponentDelta >= 0 ? '+' : ''}${vsOpponentDelta} CS` : ''
 
+  const recentRecallsStr = Object.entries(state.recallAlertedAt)
+    .filter(([, t]) => state.gameTime - t < 30)
+    .map(([name]) => state.allPlayers.find(p => matchName(p.summonerName, name))?.championName ?? name)
+    .join(', ')
+
   const allySummary = state.allPlayers
     .filter(p => me && p.team === me.team && !matchName(p.summonerName, state.activeName))
     .map(p => {
@@ -1109,6 +1158,7 @@ async function requestAICoaching(trigger) {
       `Drakes: Ally ${state.allyDrakes} · Enemy ${state.enemyDrakes}`,
       `Enemy JG: ${j.champion ?? '?'} — ${jgStatus}`,
       objParts.join(' | '),
+      recentRecallsStr ? `Recently recalled (last 30s, likely absent from lane/river): ${recentRecallsStr}` : '',
     ] : []),
     `Recent Alerts: ${recentEvts}`,
     `Recent Game Events: ${state.recentGameEvents?.join(' | ') || 'None'}`,
@@ -1144,66 +1194,47 @@ async function requestAICoaching(trigger) {
 }
 
 
-// ── Enemy Visibility Tracker ──────────────────────────────────────────────────
-function trackEnemyVisibility(allPlayers, gameTime) {
-  const me = allPlayers.find(p => matchName(p.summonerName, state.activeName))
-  if (!me) return
-
-  allPlayers.forEach(p => {
-    if (p.team === me.team) return // only track enemies
-
+// ── Enemy recall detector ─────────────────────────────────────────────────────
+// Items can only be purchased at base, so a new item ID appearing on an enemy
+// is a confirmed "they were at base a moment ago" signal — unlike CS/level/HP,
+// which the API reports regardless of fog-of-war visibility.
+function checkEnemyRecalls(allPlayers, myTeam, gameTime, myPosition) {
+  if (!myTeam || gameTime < 90) return
+  for (const p of allPlayers) {
+    if (p.team === myTeam) continue
+    // Direct lane opponent already gets dedicated recall handling in checkRoamWindows
+    if (myPosition && myPosition !== 'JUNGLE' && p.position === myPosition) continue
     const name = p.summonerName
-    const currentCS = p.scores?.creepScore ?? 0
-    const currentLvl = p.level ?? 1
-    const currentKills = p.scores?.kills ?? 0
-    const currentDeaths = p.scores?.deaths ?? 0
-    const currentAssists = p.scores?.assists ?? 0
-    const currentHP = p.stats?.currentHealth ?? 0
-    const currentItems = (p.items ?? []).map(i => i.itemID).join(',')
+    const currentIds = new Set((p.items ?? []).map(i => i.itemID))
+    const prevIds = state.enemyItemSets[name]
+    state.enemyItemSets[name] = currentIds
 
-    const prev = state.prevEnemyStats[name]
-    let visible = false
+    if (!prevIds || p.isDead) continue
+    const gotNewItem = [...currentIds].some(id => !prevIds.has(id))
+    if (!gotNewItem) continue
 
-    if (prev) {
-      if (currentCS !== prev.cs ||
-          currentLvl !== prev.level ||
-          currentKills !== prev.kills ||
-          currentDeaths !== prev.deaths ||
-          currentAssists !== prev.assists ||
-          Math.abs(currentHP - prev.hp) > 0.01 ||
-          currentItems !== prev.items) {
-        visible = true
-      }
+    const lastAlert = state.recallAlertedAt[name] ?? -999
+    if (gameTime - lastAlert < 25) continue
+    state.recallAlertedAt[name] = gameTime
+
+    if (state.jungler.name && matchName(name, state.jungler.name)) {
+      state.jungler.lastSeenTime = gameTime
+      state.jungler.lastSeenSide = 'base (recalled)'
+      setJunglerThreat(null)
+      pushAlert('🛍 Enemy JG recalled — ward jungle entrances before they return', 'gank', 'warning')
     } else {
-      // First time seeing them in this session
-      visible = true
+      const laneLabel = { TOP: 'Top', MIDDLE: 'Mid', BOTTOM: 'Bot', UTILITY: 'Support' }[p.position] ?? 'Enemy laner'
+      pushAlert(`🛍 ${laneLabel} recalled — push the wave / take tempo`, 'wave', 'normal')
     }
-
-    // Update cache
-    state.prevEnemyStats[name] = {
-      cs: currentCS,
-      level: currentLvl,
-      kills: currentKills,
-      deaths: currentDeaths,
-      assists: currentAssists,
-      hp: currentHP,
-      items: currentItems
-    }
-
-    if (visible && !p.isDead) {
-      state.enemyLastSeen[name] = gameTime
-
-      // If this is the enemy jungler, update jungler tracking too
-      if (state.jungler.name && matchName(name, state.jungler.name)) {
-        state.jungler.lastSeenTime = gameTime
-        setJunglerThreat(null)
-      }
-    }
-  })
+  }
 }
 
 // ── Missing laner tracker ─────────────────────────────────────────────────────
-const MISSING_THRESHOLD = { MIDDLE: 25, TOP: 35, BOTTOM: 35, UTILITY: 35 }
+// NOTE: Riot's Live Client Data API reports all champions' CS/level/HP/items
+// regardless of actual fog-of-war visibility, so those fields can't be used
+// as a "seen" signal — enemyLastSeen is only updated from kill/death events
+// (see checkEvents) and the resets below, which are timing signals we can trust.
+const MISSING_THRESHOLD = { MIDDLE: 150, TOP: 210, BOTTOM: 210, UTILITY: 210 }
 
 function checkMissingLaners(allPlayers, myTeam, me, gameTime) {
   if (!myTeam || !me || gameTime < 180) return
@@ -1322,6 +1353,9 @@ function checkAllinWindow(level, me, allPlayers, gameTime) {
   const badge = $('allin-badge')
   if (!me || !badge) return
   if (level < 6) { badge.classList.add('hidden'); return }
+  // Jungle has no fixed lane opponent — "my position" would match the enemy
+  // jungler themselves, making the JG-safety check self-referential/meaningless
+  if (state.myPosition === 'JUNGLE') { badge.classList.add('hidden'); return }
 
   const j      = state.jungler
   const jgSafe = j.name && (j.isDead || gameTime - j.lastSeenTime > 90)

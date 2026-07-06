@@ -1,3 +1,8 @@
+## LoL Coach Overlay v1.8.4 - Fixed Stale Objective Countdown Alerts
+
+### Bug Fixes
+- Fixed "spawns in 15s"-style warnings (Scuttler, Dragon, Void Grubs, Rift Herald, Baron) firing with a stale hardcoded countdown after the objective had already spawned — this happened when a poll tick landed late (game hiccup, background throttling, etc.) and jumped past the real spawn moment while still under the "too stale to show" cutoff. Each pre-spawn warning now checks the actual spawn time and skips itself if the objective is already up, letting the "UP" alert take over instead.
+
 ## LoL Coach Overlay v1.8.3 - Update Checker
 
 ### New Features

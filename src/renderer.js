@@ -697,6 +697,11 @@ function checkTimeline(gameTime) {
       // Skip alerts more than 45s in the past — avoids firing stale objective
       // warnings when the overlay starts mid-game or state resets
       if (gameTime - alert.time > 45) continue
+      // Skip pre-spawn countdowns ("spawns in 15s") if the objective has
+      // already spawned by the time this tick runs (e.g. after a lagged/
+      // delayed poll) — the hardcoded countdown text would otherwise claim
+      // something is about to spawn when it's already up on the map.
+      if (alert.spawnAt && gameTime >= alert.spawnAt) continue
 
       let msg = alert.msg
       if (alert.time === 5 && state.targetCS && state.targetCS !== 7.0) {

@@ -11,6 +11,7 @@ contextBridge.exposeInMainWorld('lolCoach', {
   saveApiKey:       (key) => ipcRenderer.invoke('save-api-key', key),
   aiCoaching:       (prompt) => ipcRenderer.invoke('ai-coaching', prompt),
   aiGameStart:      (prompt) => ipcRenderer.invoke('ai-game-start', prompt),
+  getMatchupBrief:  (prompt) => ipcRenderer.invoke('ai-matchup-brief', prompt),
   showCenterNotif:    (msg, pri) => ipcRenderer.send('show-center-notif', { msg, pri }),
   dismissCenterNotif:  ()        => ipcRenderer.send('dismiss-center-notif'),
   onJgPing:            (cb)     => ipcRenderer.on('jg-ping', () => cb()),

@@ -82,6 +82,7 @@
     "Never suggest buying or building removed items or mythics.",
     "Atakhan is REMOVED in Season 2026. Never reference Atakhan as an objective.",
     "Always assume Void Grubs spawn at 8:00 only once, and Rift Herald at 15:00 only once.",
-    "Dragon spawns at 5:00 and respawns every 5 minutes. Baron spawns at 20:00 and respawns 6 minutes after kill."
+    "Dragon spawns at 5:00 and respawns every 5 minutes. Baron spawns at 20:00 and respawns 6 minutes after kill.",
+    "Never state a specific item build path or component recipe (e.g. 'build X into Y') unless you are certain it is correct for the current patch. If unsure of an item's exact components, recommend the item by name and its role/effect only — do not invent or guess which items combine into it. See the verified item recipes list (auto-generated from Riot's Data Dragon each patch) for exact build paths."
   ]
 }

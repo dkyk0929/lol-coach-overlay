@@ -363,6 +363,7 @@ let nameToId      = {}     // display name (lower) → numeric id
 let nameToInternal= {}     // display name (lower) → internal name (e.g. "AurelionSol")
 let lastCSKey     = null   // detect meaningful champ-select changes
 let ddVersion     = null   // latest Data Dragon version (set when champ map loads)
+let itemRecipesText = ''  // resolved "Name = Comp1 + Comp2 (Xg total)" lines, from Data Dragon
 
 
 // ── Game scout state ──────────────────────────────────────────────────────────
@@ -397,6 +398,7 @@ const LOCKFILE_PATHS = [
 ]
 
 const configPath = path.join(app.getPath('userData'), 'config.json')
+const itemCachePath = path.join(app.getPath('userData'), 'item-recipes-cache.json')
 
 function loadConfig() {
   try { return JSON.parse(fs.readFileSync(configPath, 'utf8')) } catch { return {} }
@@ -439,6 +441,9 @@ function getGameRulesText() {
       }
       if (data.general_notes && data.general_notes.length > 0) {
         rules.push(`ADDITIONAL RULES & CONSTRAINTS: ${data.general_notes.join(' ')}`)
+      }
+      if (itemRecipesText) {
+        rules.push(`VERIFIED ITEM RECIPES (use these exact component paths, do not guess others): ${itemRecipesText}`)
       }
       gameRulesCached = '\n\n' + rules.join('\n')
       return gameRulesCached
@@ -500,6 +505,61 @@ function callAnthropic({ systemText, userText, maxTokens }) {
   })
 }
 
+// Same as callAnthropic but with the web_search tool enabled — used once at
+// game start for a grounded matchup/itemization brief, since that call has
+// slack time (early laning) unlike the fast in-game coaching calls, which
+// must stay search-free to keep latency low.
+function callAnthropicWithSearch({ systemText, userText, maxTokens }) {
+  return new Promise((resolve, reject) => {
+    if (!anthropicApiKey) { resolve(null); return }
+    const body = JSON.stringify({
+      model: 'claude-haiku-4-5-20251001',
+      max_tokens: maxTokens,
+      system: [{ type: 'text', text: systemText }],
+      tools: [{ type: 'web_search_20250305', name: 'web_search', max_uses: 3 }],
+      messages: [{ role: 'user', content: userText }],
+    })
+    const req = https.request({
+      hostname: 'api.anthropic.com',
+      path: '/v1/messages',
+      method: 'POST',
+      timeout: 25000,
+      headers: {
+        'content-type':      'application/json',
+        'x-api-key':         anthropicApiKey,
+        'anthropic-version': '2023-06-01',
+        'content-length':    Buffer.byteLength(body),
+      },
+    }, (res) => {
+      let data = ''
+      res.on('data', c => data += c)
+      res.on('end', () => {
+        try {
+          const parsed = JSON.parse(data)
+          if (res.statusCode !== 200) {
+            const errMsg = parsed.error?.message || `HTTP ${res.statusCode}`
+            reject(new Error(errMsg))
+          } else {
+            // Response interleaves text blocks with server_tool_use / web_search_tool_result
+            // blocks — concatenate just the text blocks for the final answer.
+            const text = (parsed.content ?? [])
+              .filter(b => b.type === 'text')
+              .map(b => b.text)
+              .join(' ')
+              .trim()
+            resolve(text || null)
+          }
+        }
+        catch (err) { reject(new Error('Failed to parse API response: ' + err.message)) }
+      })
+    })
+    req.on('timeout', () => { req.destroy(); reject(new Error('Request timed out after 25 seconds')) })
+    req.on('error', (e) => reject(new Error(e.message)))
+    req.write(body)
+    req.end()
+  })
+}
+
 // Direct HTTPS call to Gemini API
 function callGemini({ systemText, userText, maxTokens }) {
   return new Promise((resolve, reject) => {
@@ -553,6 +613,61 @@ function callGemini({ systemText, userText, maxTokens }) {
       }
       reject(new Error(msg))
     })
+    req.write(body)
+    req.end()
+  })
+}
+
+// Same as callGemini but with Google Search grounding enabled — used for the
+// one-time, web-search-grounded matchup brief (see callAnthropicWithSearch).
+function callGeminiWithSearch({ systemText, userText, maxTokens }) {
+  return new Promise((resolve, reject) => {
+    if (!geminiApiKey) { resolve(null); return }
+    const body = JSON.stringify({
+      contents: [{
+        parts: [{ text: userText }]
+      }],
+      systemInstruction: {
+        parts: [{ text: systemText }]
+      },
+      tools: [{ google_search: {} }],
+      generationConfig: {
+        maxOutputTokens: maxTokens,
+        thinkingConfig: {
+          thinkingBudget: 0
+        }
+      }
+    })
+
+    const req = https.request({
+      hostname: 'generativelanguage.googleapis.com',
+      path: `/v1beta/models/gemini-2.5-flash:generateContent?key=${geminiApiKey}`,
+      method: 'POST',
+      timeout: 25000,
+      headers: {
+        'content-type': 'application/json',
+        'content-length': Buffer.byteLength(body),
+      },
+    }, (res) => {
+      let data = ''
+      res.on('data', c => data += c)
+      res.on('end', () => {
+        try {
+          const parsed = JSON.parse(data)
+          if (res.statusCode !== 200) {
+            const errMsg = parsed.error?.message || `HTTP ${res.statusCode}`
+            reject(new Error(errMsg))
+          } else {
+            const text = parsed.candidates?.[0]?.content?.parts
+              ?.map(p => p.text).filter(Boolean).join(' ')
+            resolve(text?.trim() || null)
+          }
+        }
+        catch (err) { reject(new Error('Failed to parse API response: ' + err.message)) }
+      })
+    })
+    req.on('timeout', () => { req.destroy(); reject(new Error('Request timed out after 25 seconds')) })
+    req.on('error', (e) => reject(new Error(e.message)))
     req.write(body)
     req.end()
   })
@@ -653,6 +768,60 @@ async function loadChampionMap() {
     console.log(`Champion map loaded from Data Dragon ${version}: ${Object.keys(champIdMap).length} champs`)
   } catch (e) {
     console.error('Champion map failed entirely:', e.message)
+  }
+}
+
+// ── Item recipe fetcher (Data Dragon) ─────────────────────────────────────────
+// Builds "Name = Comp1 + Comp2 (Xg total)" lines for every purchasable Summoner's
+// Rift item with a build path, so the AI never has to guess/hallucinate a recipe.
+// Cached to disk keyed by Data Dragon version — only re-fetches on a patch change.
+async function loadItemRecipes() {
+  try {
+    let version = ddVersion
+    if (!version) {
+      const versions = await fetchJSON('https://ddragon.leagueoflegends.com/api/versions.json')
+      version = versions[0]
+    }
+
+    let cached = null
+    try { cached = JSON.parse(fs.readFileSync(itemCachePath, 'utf8')) } catch {}
+    if (cached && cached.version === version && cached.text) {
+      itemRecipesText = cached.text
+      gameRulesCached = null
+      console.log(`Item recipes loaded from cache (Data Dragon ${version}): ${cached.count} items`)
+      return
+    }
+
+    const itemData = await fetchJSON(`https://ddragon.leagueoflegends.com/cdn/${version}/data/en_US/item.json`)
+    const idToName = {}
+    for (const [id, item] of Object.entries(itemData.data)) idToName[id] = item.name
+
+    const seen = new Set()
+    const lines = []
+    for (const item of Object.values(itemData.data)) {
+      if (!item.maps?.['11'] || !item.gold?.purchasable) continue
+      if ((item.depth ?? 1) < 2) continue           // skip basic components, not "recipes"
+      if (!item.from || item.from.length === 0) continue
+      if (seen.has(item.name)) continue             // dedup alt item-IDs for the same name
+      seen.add(item.name)
+      const comps = item.from.map(id => idToName[id] ?? '?').join(' + ')
+      lines.push(`${item.name} = ${comps} (${item.gold.total}g total)`)
+    }
+
+    itemRecipesText = lines.join(' | ')
+    gameRulesCached = null   // force getGameRulesText() to rebuild with fresh recipes
+    try {
+      fs.writeFileSync(itemCachePath, JSON.stringify({ version, text: itemRecipesText, count: lines.length }))
+    } catch {}
+    console.log(`Item recipes loaded from Data Dragon ${version}: ${lines.length} items`)
+  } catch (e) {
+    // Fail soft — fall back to whatever's cached on disk (even from an older version)
+    // rather than leaving the AI with zero recipe grounding.
+    try {
+      const cached = JSON.parse(fs.readFileSync(itemCachePath, 'utf8'))
+      if (cached?.text) { itemRecipesText = cached.text; gameRulesCached = null }
+    } catch {}
+    console.error('Item recipe fetch failed:', e.message)
   }
 }
 
@@ -1364,6 +1533,27 @@ ipcMain.handle('ai-game-start', async (event, prompt) => {
   }
 })
 
+// One-time, web-search-grounded matchup + itemization brief fired at game
+// start (has slack time unlike the fast in-game coaching calls). Cached by
+// the renderer and appended as context to every ai-coaching call afterward.
+ipcMain.handle('ai-matchup-brief', async (event, prompt) => {
+  const cfg = loadConfig()
+  const provider = cfg.aiProvider || 'anthropic'
+  const hasKey = provider === 'gemini' ? !!cfg.geminiApiKey : !!cfg.apiKey
+  if (!hasKey) return null
+
+  const systemText = 'You are a League of Legends coach with live web search access. Research the specific champion matchup and role given, using current patch information. Give a concise answer in under 120 words covering: (1) how to play the matchup — key things to do and avoid, (2) the win condition, (3) recommended item build for this specific matchup. No markdown, no asterisks, plain text only.' + getGameRulesText()
+
+  try {
+    return provider === 'gemini'
+      ? await callGeminiWithSearch({ systemText, userText: prompt, maxTokens: 300 })
+      : await callAnthropicWithSearch({ systemText, userText: prompt, maxTokens: 300 })
+  } catch (e) {
+    console.error('AI matchup brief error:', e.message)
+    return null
+  }
+})
+
 ipcMain.handle('ai-champ-select', async (event, prompt) => {
   const cfg = loadConfig()
   const provider = cfg.aiProvider || 'anthropic'
@@ -1404,7 +1594,7 @@ ipcMain.handle('save-alert-settings', (_, mutes) => saveConfig({ alertMutes: mut
 app.whenReady().then(() => {
   createWindow()
   createTray()
-  loadChampionMap()   // pre-load so names are ready before champ select opens
+  loadChampionMap().then(loadItemRecipes)   // item recipes reuse ddVersion set by the champ map load
   startLCUPolling()
   checkForUpdate()
 

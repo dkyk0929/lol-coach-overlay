@@ -1,3 +1,12 @@
+## LoL Coach Overlay v1.9.0 - Web-Search-Grounded Matchup Brief & Verified Item Recipes
+
+### Bug Fixes
+- Fixed the AI recommending a nonexistent item build path ("Lost Chapter into Rod of Ages") by adding an explicit guardrail instruction telling the AI never to state a specific recipe unless certain.
+
+### New Features
+- **Automated, always-current item recipes**: the AI now pulls real build paths for 170+ items directly from Riot's official Data Dragon feed instead of guessing or relying on a hand-typed list. Cached locally, auto-refreshes whenever the patch changes — replaces the old manually-curated (and partly wrong) recipe list entirely.
+- **Web-search-grounded matchup brief**: once per game, right after you lock in, the app now asks the AI to research your specific matchup (champion vs champion, role) and itemization using live web search, then caches that grounded answer and feeds it into every fast in-game coaching tip for the rest of the match. Works for both Anthropic and Gemini providers.
+
 ## LoL Coach Overlay v1.8.4 - Fixed Stale Objective Countdown Alerts
 
 ### Bug Fixes

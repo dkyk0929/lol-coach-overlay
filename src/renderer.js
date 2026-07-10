@@ -229,6 +229,8 @@ function freshState() {
     lastAICallAt: -999,
     aiEnabled: false,
     gamePlanFired: false,
+    matchupBriefFired: false,
+    matchupBrief: null,
     lastVisionReminderAt: -999,
     gamePlanShowing: false,
     enemyDeadPrev: {},
@@ -1074,6 +1076,24 @@ async function requestGamePlan() {
       state.lastAICallAt = -999
     }
   } catch {}
+
+  // Fire the deeper, web-search-grounded matchup/itemization brief once,
+  // in parallel — it has more slack time than the fast advice above, so a
+  // few extra seconds of search latency here is fine. Cached in state and
+  // appended to every requestAICoaching() call afterward.
+  if (!state.isARAM && !state.matchupBriefFired) {
+    const me       = state.allPlayers.find(p => matchName(p.summonerName, state.activeName))
+    const opponent = state.allPlayers.find(p =>
+      p.team !== me?.team && p.position === state.myPosition && p.position !== 'JUNGLE'
+    )
+    if (opponent) {
+      state.matchupBriefFired = true
+      const briefPrompt = `I'm playing ${state.myChampion} as ${state.myPosition} against ${opponent.championName}. Search for current-patch matchup advice and itemization for this specific matchup, then answer.`
+      window.lolCoach.getMatchupBrief(briefPrompt).then(brief => {
+        if (brief) state.matchupBrief = brief
+      })
+    }
+  }
 }
 
 // ── AI coaching ───────────────────────────────────────────────────────────────
@@ -1155,6 +1175,7 @@ async function requestAICoaching(trigger) {
   const lines = [
     `My champion: ${state.myChampion ?? '?'}${state.isARAM ? ' (ARAM)' : ` (${state.myPosition ?? '?'})`} — ${phase} game (${fmtTime(state.gameTime)})`,
     champKit ? `Current kit (live patch): ${champKit}` : '',
+    state.matchupBrief ? `Verified Matchup Brief (web-search grounded, gathered at game start): ${state.matchupBrief}` : '',
     scoutCtx ?? '',
     `My Status: ${state.kills}/${state.deaths}/${state.assists} | Level: ${myLvl} | CS: ${state.cs} (vs Target Pace: ${delta >= 0 ? '+' : ''}${delta} CS${vsOpponentStr}) | Items: ${myItems.join(', ') || 'none'}`,
     `Allies Status: ${allySummary || 'none'}`,

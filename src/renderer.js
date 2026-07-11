@@ -1090,7 +1090,12 @@ async function requestGamePlan() {
       state.matchupBriefFired = true
       const briefPrompt = `I'm playing ${state.myChampion} as ${state.myPosition} against ${opponent.championName}. Search for current-patch matchup advice and itemization for this specific matchup, then answer.`
       window.lolCoach.getMatchupBrief(briefPrompt).then(brief => {
-        if (brief) state.matchupBrief = brief
+        if (brief) {
+          state.matchupBrief = brief
+          pushAlert('✓ Matchup research loaded — coaching grounded in live search', 'info', 'normal')
+        } else {
+          pushAlert('⚠ Matchup research unavailable — coaching using general knowledge', 'info', 'normal')
+        }
       })
     }
   }

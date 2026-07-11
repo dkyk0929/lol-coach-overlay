@@ -1,3 +1,8 @@
+## LoL Coach Overlay v1.9.1 - Matchup Research Status Indicator
+
+### Bug Fixes
+- The web-search-grounded matchup brief (added in 1.9.0) gave no indication of whether it succeeded or failed — main.js swallowed every failure internally and returned null either way, so the player had no way to know if coaching was actually grounded in live search or fell back to general knowledge. Now shows a quiet status line ("Matchup research loaded" or "unavailable — using general knowledge") in the focus text and recent alerts log once it resolves.
+
 ## LoL Coach Overlay v1.9.0 - Web-Search-Grounded Matchup Brief & Verified Item Recipes
 
 ### Bug Fixes

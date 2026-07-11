@@ -214,7 +214,7 @@ function createInfoWindow() {
     infoWindow.focus(); return
   }
   const { width: sw, height: sh } = screen.getPrimaryDisplay().workAreaSize
-  const w = 400, h = 250
+  const w = 400, h = 480
   infoWindow = new BrowserWindow({
     width: w, height: h,
     x: Math.floor((sw - w) / 2),

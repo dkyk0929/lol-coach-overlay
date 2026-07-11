@@ -1,3 +1,9 @@
+## LoL Coach Overlay v1.9.2 - ARAM Detection Fix & Info Window Crop Fix
+
+### Bug Fixes
+- Fixed ARAM games sometimes being tracked as Summoner's Rift for the whole match. ARAM detection only ever checked `gameMode` once, on the very first data tick after connecting — if that first payload (most likely right when connecting mid-game, e.g. after an app restart) had `gameMode` not yet populated, the app permanently misdetected the game as SR with no retry. Now checks every tick and self-heals as soon as `gameMode` comes back as `ARAM`.
+- Fixed the Info & Links window being cropped — its fixed height was never increased when the Hotkeys section was added, so content was hard-clipped at the window edge with no way to scroll. Window resized and a scroll fallback added so this can't silently clip again.
+
 ## LoL Coach Overlay v1.9.1 - Matchup Research Status Indicator
 
 ### Bug Fixes

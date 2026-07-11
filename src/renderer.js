@@ -366,19 +366,23 @@ window.lolCoach.onGameData((data) => {
     state.running    = true
     state.aiEnabled  = aiEnabled
     state.activeName = activePlayer.summonerName
-    if (gameData.gameMode === 'ARAM') {
-      state.isARAM = true
-      $('jg-last').textContent  = 'ARAM'
-      $('jg-threat').textContent = ''
-      $('drake-icon').textContent = '⚔'
-      $('ally-drakes').textContent = ''
-      $('enemy-drakes').textContent = ''
-      document.querySelector('.drake-sep').textContent = ''
-      $('obj-countdown').textContent = ''
-    }
     waitingScreen.classList.add('hidden')
     gameScreen.classList.remove('hidden')
     appEl.classList.add('dimmed')
+  }
+
+  // Checked every tick (not just the first) — if the very first payload after
+  // connecting mid-game had gameMode not yet populated, this self-heals on a
+  // later tick instead of permanently misdetecting SR for the whole game.
+  if (!state.isARAM && gameData.gameMode === 'ARAM') {
+    state.isARAM = true
+    $('jg-last').textContent  = 'ARAM'
+    $('jg-threat').textContent = ''
+    $('drake-icon').textContent = '⚔'
+    $('ally-drakes').textContent = ''
+    $('enemy-drakes').textContent = ''
+    document.querySelector('.drake-sep').textContent = ''
+    $('obj-countdown').textContent = ''
   }
 
   state.gameTime   = gameData.gameTime

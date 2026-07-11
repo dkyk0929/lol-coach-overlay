@@ -62,6 +62,7 @@ function entryHTML(e) {
   const stats    = [cspm, dur].filter(Boolean).join(' · ')
   const date     = fmtDate(e.date)
   const hasAI    = !!e.analysis
+  const hasResearch = !!e.matchupResearchUsed
   const analysis = hasAI
     ? e.analysis.replace(/</g, '&lt;').replace(/>/g, '&gt;')
     : '<span class="no-analysis">No AI analysis for this game.</span>'
@@ -70,6 +71,7 @@ function entryHTML(e) {
     <div class="entry-summary">
       <span class="result-badge ${result}">${badge}</span>
       <span class="entry-champ">${e.champion ?? '?'}</span>
+      ${hasResearch ? '<span class="entry-research" title="Matchup research loaded — coaching was grounded in live search">✦</span>' : ''}
       <span class="entry-pos">${pos}</span>
       <span class="entry-kda">${kda}</span>
       <span class="entry-stats">${stats}</span>

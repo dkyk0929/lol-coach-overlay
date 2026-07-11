@@ -1,3 +1,8 @@
+## LoL Coach Overlay v1.9.3 - Matchup Research Indicator in Battle Log
+
+### New Features
+- The battle log now shows a small teal ✦ next to the champion name on any game where the web-search-grounded matchup brief successfully loaded, so you can tell at a glance whether that game's coaching was grounded in live research or general knowledge. Hover it for details. Games recorded before this update won't show the icon since the data wasn't tracked yet.
+
 ## LoL Coach Overlay v1.9.2 - ARAM Detection Fix & Info Window Crop Fix
 
 ### Bug Fixes

@@ -525,6 +525,7 @@ function showPostGameRecap() {
     cs: state.cs, gameTime: state.gameTime,
     allyDrakes: state.allyDrakes, enemyDrakes: state.enemyDrakes,
     result: state.gameResult,
+    matchupResearchUsed: !!state.matchupBrief,
   })
 
   // Launch post-game analysis window
@@ -545,6 +546,7 @@ function showPostGameRecap() {
       enemyTeam:    state.enemyTeam,
       isARAM:       state.isARAM,
       alertLogFull: state.alertLogFull.slice(-30),
+      matchupResearchUsed: !!state.matchupBrief,
     })
   }
 }

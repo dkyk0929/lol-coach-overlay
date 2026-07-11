@@ -160,6 +160,13 @@ body {
   overflow: hidden;
   text-overflow: ellipsis;
 }
+.entry-research {
+  color: var(--teal);
+  font-size: 11px;
+  flex-shrink: 0;
+  text-shadow: 0 0 6px var(--teal-glow);
+  margin-left: -4px;
+}
 .entry-pos   { color: var(--text-muted); font-size: 12px; min-width: 28px; }
 .entry-kda   { color: var(--text-primary);  min-width: 65px; }
 .entry-stats { color: var(--text-muted); flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }

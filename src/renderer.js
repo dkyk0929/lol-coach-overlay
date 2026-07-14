@@ -99,6 +99,14 @@ function isCoachStatementRelevant(text, apiElapsedTime = 0) {
     break; // Only check the first relative time mention
   }
 
+  // A window this tight is unusable by the time it's rendered and spoken —
+  // reject outright regardless of how fast the API call itself was, since
+  // rendering + TTS add their own real-world delay on top of the round trip.
+  if (mentionedTimeSec !== null && mentionedTimeSec <= 5) {
+    console.log(`[Relevance Filter] Rejected — window too tight to act on (${mentionedTimeSec}s): "${text}"`);
+    return false;
+  }
+
   // If a short relative time is mentioned (e.g. under 45 seconds),
   // and the API request itself took longer than 10 seconds,
   // reject if the API latency is significant relative to the time mentioned.
@@ -117,8 +125,54 @@ function isCoachStatementRelevant(text, apiElapsedTime = 0) {
     mentionedAbsoluteSec = mins * 60 + secs;
   }
 
+  // Generic "already happened" check — applies to ANY absolute time mention,
+  // not just Dragon/Baron. If the AI names a clock time already in the past,
+  // it's stale no matter what it's talking about.
+  if (mentionedAbsoluteSec !== null && state.gameTime > mentionedAbsoluteSec + 5) {
+    console.log(`[Relevance Filter] Rejected — absolute time ${fmtTime(mentionedAbsoluteSec)} has already passed: "${text}"`);
+    return false;
+  }
+
   const hasDragon = lowerText.includes('dragon') || lowerText.includes('drake');
   const hasBaron = lowerText.includes('baron');
+  const hasGrubs = lowerText.includes('grub');
+  const hasHerald = lowerText.includes('herald');
+
+  // Void Grubs and Rift Herald are one-time objectives with a hard despawn —
+  // once that window's closed, any mention of them is stale by definition.
+  if (hasGrubs && state.gameTime > 495) {
+    console.log(`[Relevance Filter] Rejected — Void Grubs window already closed: "${text}"`);
+    return false;
+  }
+  if (hasHerald && state.gameTime > 915) {
+    console.log(`[Relevance Filter] Rejected — Rift Herald window already closed: "${text}"`);
+    return false;
+  }
+
+  // Generic champion life/death staleness — catches any named champion whose
+  // dead/alive/respawning status the AI got wrong by the time the response
+  // came back, not just Dragon/Baron. Live status comes from state.allPlayers,
+  // which the poll loop keeps fresh independent of the AI round trip.
+  const deathWords  = /\b(dead|died|dying|killed|respawn(?:s|ing|ed)?)\b/;
+  const aliveWords  = /\b(alive|respawned|back (?:up|in lane)|returned)\b/;
+  for (const p of state.allPlayers ?? []) {
+    const champLower = p.championName?.toLowerCase();
+    if (!champLower || !lowerText.includes(champLower)) continue;
+
+    if (deathWords.test(lowerText) && !aliveWords.test(lowerText) && !p.isDead) {
+      console.log(`[Relevance Filter] Rejected — ${p.championName} is alive now, but AI said: "${text}"`);
+      return false;
+    }
+    if (aliveWords.test(lowerText) && p.isDead) {
+      console.log(`[Relevance Filter] Rejected — ${p.championName} is dead now, but AI said: "${text}"`);
+      return false;
+    }
+    // If a respawn timer was quoted, check it against the real one.
+    if (p.isDead && mentionedTimeSec !== null && Math.abs((p.respawnTimer ?? 0) - mentionedTimeSec) > 10) {
+      console.log(`[Relevance Filter] Rejected — ${p.championName} respawns in ${Math.round(p.respawnTimer ?? 0)}s, but AI said ${mentionedTimeSec}s: "${text}"`);
+      return false;
+    }
+  }
 
   if (hasDragon) {
     const dragonLeft = state.nextDragonSpawn - state.gameTime;
@@ -134,15 +188,10 @@ function isCoachStatementRelevant(text, apiElapsedTime = 0) {
       }
     }
 
-    if (mentionedAbsoluteSec !== null) {
-      if (state.gameTime > mentionedAbsoluteSec) {
-        console.log(`[Relevance Filter] Rejected dragon advice: absolute time ${fmtTime(mentionedAbsoluteSec)} has passed, but AI said: "${text}"`);
-        return false;
-      }
-      if (Math.abs(state.nextDragonSpawn - mentionedAbsoluteSec) > 20) {
-        console.log(`[Relevance Filter] Rejected dragon advice: next spawn is at ${fmtTime(state.nextDragonSpawn)}, but AI said absolute ${fmtTime(mentionedAbsoluteSec)}: "${text}"`);
-        return false;
-      }
+    // Already-passed case is caught by the generic absolute-time check above.
+    if (mentionedAbsoluteSec !== null && Math.abs(state.nextDragonSpawn - mentionedAbsoluteSec) > 20) {
+      console.log(`[Relevance Filter] Rejected dragon advice: next spawn is at ${fmtTime(state.nextDragonSpawn)}, but AI said absolute ${fmtTime(mentionedAbsoluteSec)}: "${text}"`);
+      return false;
     }
   }
 
@@ -160,11 +209,8 @@ function isCoachStatementRelevant(text, apiElapsedTime = 0) {
       }
     }
 
+    // Already-passed case is caught by the generic absolute-time check above.
     if (mentionedAbsoluteSec !== null) {
-      if (state.gameTime > mentionedAbsoluteSec) {
-        console.log(`[Relevance Filter] Rejected baron advice: absolute time ${fmtTime(mentionedAbsoluteSec)} has passed, but AI said: "${text}"`);
-        return false;
-      }
       if (Math.abs(state.nextBaronSpawn - mentionedAbsoluteSec) > 20) {
         console.log(`[Relevance Filter] Rejected baron advice: next spawn is at ${fmtTime(state.nextBaronSpawn)}, but AI said absolute ${fmtTime(mentionedAbsoluteSec)}: "${text}"`);
         return false;

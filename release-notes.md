@@ -1,3 +1,12 @@
+## LoL Coach Overlay v1.9.4 - Stricter Freshness Filter for Coaching Tips
+
+### Bug Fixes
+- Tightened the relevance filter that catches stale AI coaching tips (the delay between sending game state and getting a response could make a tip outdated by the time it's spoken):
+  - Any "in Xs" claim of 5 seconds or less is now rejected outright — even a fast response plus render/TTS time makes that window meaningless by the time you hear it.
+  - The "already happened" check now applies to any absolute-time mention, not just Dragon/Baron.
+  - Void Grubs and Rift Herald mentions are now rejected once their one-time window has permanently closed.
+  - New: any named champion's life/death status is cross-checked against live game data — if the AI says someone's dead/respawning but they're actually alive now (or vice versa), or quotes a respawn timer that doesn't match reality, the tip is dropped instead of spoken.
+
 ## LoL Coach Overlay v1.9.3 - Matchup Research Indicator in Battle Log
 
 ### New Features

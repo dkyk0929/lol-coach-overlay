@@ -372,7 +372,7 @@ window.lolCoach.getVersion().then(v => {
 
 // ── Manual JG ping (F9) ────────────────────────────────────────────────────────
 window.lolCoach.onJgPing(() => {
-  if (!state.running || !state.jungler.name) return
+  if (!state.running || state.isARAM || !state.jungler.name) return
   state.jungler.lastSeenTime  = state.gameTime
   state.jungler.unseenAlertAt = state.gameTime
   setJunglerThreat(null)
@@ -745,6 +745,7 @@ function renderJungler() {
 const ALERT_CATS = new Set(['objective'])
 
 function checkTimeline(gameTime) {
+  if (state.isARAM) return
   for (const alert of TIMELINE_ALERTS) {
     if (!state.shownTimeline.has(alert.time) && gameTime >= alert.time) {
       state.shownTimeline.add(alert.time)
@@ -942,6 +943,9 @@ function checkEvents(events, activeName, allPlayers, myTeam) {
     }
 
     if (!stale) {
+      if (state.isARAM && ['DragonKill', 'BaronKill', 'RiftHeraldKill'].includes(ev.EventName)) {
+        continue
+      }
       const alert = handleGameEvent(ev, activeName, allPlayers)
       if (alert) pushAlert(alert.msg, alert.cat, alert.pri)
     }
@@ -1379,12 +1383,17 @@ function checkEnemyPushWindow(allPlayers, myTeam, me, gameTime) {
   const lanerDied = newlyDead.find(p => p.position === me.position)
 
   if (totalDead >= 3) {
-    const msg = `${totalDead} enemies down — take Dragon or Baron now!`
+    const msg = state.isARAM 
+      ? `${totalDead} enemies down — push turrets and nexus now!` 
+      : `${totalDead} enemies down — take Dragon or Baron now!`
     pushAlert(msg, 'push', 'urgent')
-    speak(`${totalDead} enemies down! Take an objective.`, true)
+    speak(state.isARAM ? `${totalDead} enemies down! Push the lane now.` : `${totalDead} enemies down! Take an objective.`, true)
   } else if (lanerDied && totalDead >= 2) {
-    pushAlert('Laner + another down — push for plates or Dragon', 'push', 'warning')
-    speak('Laner down with backup. Extend push or take Dragon.', false)
+    const msg = state.isARAM
+      ? '2 enemies down — push for turrets'
+      : 'Laner + another down — push for plates or Dragon'
+    pushAlert(msg, 'push', 'warning')
+    speak(state.isARAM ? '2 enemies down. Push the lane.' : 'Laner down with backup. Extend push or take Dragon.', false)
   } else if (lanerDied) {
     const t = Math.ceil(lanerDied.respawnTimer ?? 0)
     const tStr = t > 0 ? ` — ${t}s window` : ''

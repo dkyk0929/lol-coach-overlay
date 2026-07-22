@@ -1,3 +1,11 @@
+## LoL Coach Overlay v1.9.5 - Fix ARAM Objective & Push Alert Misdetections
+
+### Bug Fixes
+- Fixed ARAM mode triggering Summoner's Rift objective advice ("take Dragon or Baron now!") when 3+ enemies died — replaced with ARAM-appropriate push callouts ("3 enemies down — push turrets and nexus now!").
+- Added early-exit guard to `checkTimeline` to prevent hardcoded scheduled objective alerts from ever firing during ARAM matches.
+- Disabled manual jungler ping (`F9`) in ARAM mode so pressing `F9` does not announce "Jungler spotted".
+- Filtered out `DragonKill`, `BaronKill`, and `RiftHeraldKill` events in `checkEvents` when playing ARAM.
+
 ## LoL Coach Overlay v1.9.4 - Stricter Freshness Filter for Coaching Tips
 
 ### Bug Fixes

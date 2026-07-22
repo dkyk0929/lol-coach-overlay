@@ -1,3 +1,10 @@
+## LoL Coach Overlay v1.9.7 - Complete ARAM In-Game AI Coaching & Multi-Signal Detection Fix
+
+### Bug Fixes
+- **In-Game Fast Coaching (`ai-coaching`) Prompt Fix**: Fixed in-game periodic AI coaching tips mentioning "Void Grubs up" at 8:00 during ARAM matches by using an ARAM-specific system prompt in `main.js` that omits `getGameRulesText()` and forbids mentioning Void Grubs, Scuttle Crab, Dragon, Baron, or junglers.
+- **Relevance Filter Safeguard**: Added immediate rejection filter in `isCoachStatementRelevant()` for any advice containing SR objective/jungle keywords (`grub`, `dragon`, `baron`, `herald`, `scuttle`, `jungle`, `roam`) when in ARAM mode.
+- **Multi-Signal ARAM Auto-Detection**: Expanded ARAM detection in `onGameData()` to check `gameMode`, `mapName` ("Howling Abyss" / "Map12"), `mapNumber === 12`, and player position arrays.
+
 ## LoL Coach Overlay v1.9.6 - Fix ARAM Match-Start AI Game Plan Context
 
 ### Bug Fixes

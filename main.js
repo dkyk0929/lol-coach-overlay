@@ -1488,8 +1488,13 @@ ipcMain.handle('ai-coaching', async (event, prompt) => {
   if (now - lastAICallTime < 5000) return null
   lastAICallTime = now
   try {
+    const isARAM = prompt.includes('ARAM')
+    const systemText = isARAM
+      ? 'You are a League of Legends coach for an ARAM game on Howling Abyss. Give 1-2 specific actionable sentences focused on 5v5 teamfighting, skill-shot positioning, target prioritization, and item counter-builds. DO NOT mention Void Grubs, Scuttle Crab, Dragon, Baron, junglers, or roaming. NEVER recommend buying or building an item that is already listed in the player\'s inventory (\'My items\'). Name champions. No fluff, no markdown. Max 50 words.'
+      : 'You are a League of Legends in-game coach. Give 1-2 specific actionable sentences tailored to the player\'s champion, role, and current state. Focus on macro play, win conditions, positioning, build adjustments, and objective control. Analyze the enemy team composition/items to suggest counter items (e.g. Magic Resist, Anti-heal, Pen) when appropriate. NEVER recommend buying or building an item that is already listed in the player\'s inventory (\'My items\'). Be aware of game momentum (recent events). On death, analyze the killer\'s details to recommend defensive pivots. Never suggest objectives or events that have already passed. Name champions. No fluff, no markdown. Max 50 words.' + getGameRulesText()
+
     return trimToSentence(await callAI({
-      systemText: 'You are a League of Legends in-game coach. Give 1-2 specific actionable sentences tailored to the player\'s champion, role, and current state. Focus on macro play, win conditions, positioning, build adjustments, and objective control. Analyze the enemy team composition/items to suggest counter items (e.g. Magic Resist, Anti-heal, Pen) when appropriate. NEVER recommend buying or building an item that is already listed in the player\'s inventory (\'My items\'). Be aware of game momentum (recent events). On death, analyze the killer\'s details to recommend defensive pivots. Never suggest objectives or events that have already passed. Name champions. No fluff, no markdown. Max 50 words.' + getGameRulesText(),
+      systemText,
       userText: prompt, maxTokens: 120,
     }))
   } catch (e) { console.error('AI coaching error:', e.message); return null }

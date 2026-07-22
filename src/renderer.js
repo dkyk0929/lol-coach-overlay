@@ -133,6 +133,14 @@ function isCoachStatementRelevant(text, apiElapsedTime = 0) {
     return false;
   }
 
+  if (state.isARAM) {
+    const invalidAramWords = /\b(dragon|drake|baron|grub|grubs|herald|scuttle|scuttler|jungle|jungler|roam|roaming)\b/i
+    if (invalidAramWords.test(lowerText)) {
+      console.log(`[Relevance Filter] Rejected ARAM invalid objective/jungle advice: "${text}"`)
+      return false
+    }
+  }
+
   const hasDragon = lowerText.includes('dragon') || lowerText.includes('drake');
   const hasBaron = lowerText.includes('baron');
   const hasGrubs = lowerText.includes('grub');
@@ -417,10 +425,15 @@ window.lolCoach.onGameData((data) => {
     appEl.classList.add('dimmed')
   }
 
-  // Checked every tick (not just the first) — if the very first payload after
-  // connecting mid-game had gameMode not yet populated, this self-heals on a
-  // later tick instead of permanently misdetecting SR for the whole game.
-  if (!state.isARAM && gameData.gameMode === 'ARAM') {
+  const isAramDetected = (
+    gameData.gameMode?.toUpperCase().includes('ARAM') ||
+    gameData.mapName?.toLowerCase().includes('howling') ||
+    gameData.mapName?.toLowerCase().includes('map12') ||
+    gameData.mapNumber === 12 ||
+    (allPlayers && allPlayers.length >= 8 && allPlayers.every(p => !p.position || p.position === 'NONE' || p.position === ''))
+  )
+
+  if (!state.isARAM && isAramDetected) {
     state.isARAM = true
     $('jg-last').textContent  = 'ARAM'
     $('jg-threat').textContent = ''

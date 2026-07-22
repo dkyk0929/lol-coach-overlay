@@ -1107,20 +1107,28 @@ async function requestGamePlan() {
     window.lolCoach.getChampKit(),
   ])
   const prompt = [
-    `My champion: ${state.myChampion ?? '?'}${state.isARAM ? ' (ARAM)' : ` (${state.myPosition ?? '?'})`}`,
+    `My champion: ${state.myChampion ?? '?'}${state.isARAM ? ' (ARAM Mode on Howling Abyss)' : ` (${state.myPosition ?? '?'})`}`,
     champKit ? `Current kit (live patch): ${champKit}` : '',
     `Ally team:  ${state.allyTeam.join(', ') || 'unknown'}`,
     `Enemy team: ${state.enemyTeam.join(', ') || 'unknown'}`,
     scoutCtx ? scoutCtx : '',
     state.isARAM
-      ? 'TRIGGER: ARAM game just started — give a 2-sentence teamfight and ability-use strategy.'
+      ? 'CRITICAL ARAM RULES: This is an ARAM match. There are NO junglers, NO Scuttle Crabs, NO Void Grubs, NO Dragons, NO Barons, NO laning phases, and NO roaming. DO NOT mention Scuttle Crab, Void Grubs, Dragon, Baron, junglers, or roaming under any circumstances.\nTRIGGER: ARAM game just started — give a 2-sentence teamfight and positioning strategy.'
       : 'TRIGGER: game just started — give a 2-sentence laning strategy. If any enemies are high elo (Diamond+), mention the threat.',
   ].filter(Boolean).join('\n')
 
   try {
     const response = await window.lolCoach.aiGameStart(prompt)
     if (response) {
-      const advice = response.advice || response
+      let advice = response.advice || response
+      if (state.isARAM && typeof advice === 'string') {
+        advice = advice
+          .replace(/(?:roam|secure|contest)\s+with\s+your\s+jungler[^\.\!\?]*[\.\!\?]?/gi, '')
+          .replace(/(?:secure|contest)\s+(?:Scuttle|Scuttle Crab|Void Grubs|Dragon|Baron)[^\.\!\?]*[\.\!\?]?/gi, '')
+          .replace(/Scuttle\s+Crab[^\.\!\?]*[\.\!\?]?/gi, '')
+          .replace(/Void\s+Grubs[^\.\!\?]*[\.\!\?]?/gi, '')
+          .trim()
+      }
       state.targetCS = response.targetCS || 7.0
       focusText.textContent = `✦ ${advice}`
       focusText.style.color = '#C084FC'

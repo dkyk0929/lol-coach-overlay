@@ -1,3 +1,10 @@
+## LoL Coach Overlay v1.9.6 - Fix ARAM Match-Start AI Game Plan Context
+
+### Bug Fixes
+- Fixed the match-start AI game plan prompt (`ai-game-start`) recommending Scuttle Crab (2:55), Void Grubs (8:00), and roaming with junglers during ARAM games.
+- Updated `main.js` system prompt for ARAM game plans to explicitly exclude Summoner's Rift objective rules (`getGameRulesText()`) and forbid mentioning junglers, Scuttle Crab, Void Grubs, Dragon, Baron, or roaming.
+- Added client-side response sanitizer in `requestGamePlan()` to automatically strip any accidental objective/roam references from the initial AI match strategy.
+
 ## LoL Coach Overlay v1.9.5 - Fix ARAM Objective & Push Alert Misdetections
 
 ### Bug Fixes

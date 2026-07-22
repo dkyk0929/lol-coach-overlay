@@ -1502,8 +1502,13 @@ ipcMain.handle('ai-game-start', async (event, prompt) => {
   if (!hasKey) return null
 
   try {
+    const isARAM = prompt.includes('ARAM')
+    const baseSystem = isARAM
+      ? 'You are a League of Legends coach giving an ARAM game plan on Howling Abyss at match start. Analyze the 5v5 teamfight matchup and return a JSON object with exactly two keys:\n1. "advice": A string of exactly 2 sentences: one teamfight & positioning strategy based on the champion\'s playstyle, one 5v5 win condition. DO NOT mention junglers, Scuttle Crab, Void Grubs, Dragon, Baron, or roaming under any circumstances.\n2. "targetCS": Return 0.0 for ARAM.\nReturn ONLY the JSON object. Do not include markdown formatting or wrapper text.'
+      : 'You are a League of Legends in-game coach giving a game plan at match start. Analyze the matchup and return a JSON object with exactly two keys:\n1. "advice": A string of exactly 2 sentences: one laning strategy based on the champion\'s general playstyle and matchup, one win condition. Focus on macro patterns. Avoid referencing specific ability names. If player intel with ranks is included, call out high-elo threats by name.\n2. "targetCS": A number representing the recommended target CS per minute for this matchup (e.g., between 5.0 and 9.5). Default to 7.0 if unsure.\nReturn ONLY the JSON object. Do not include markdown formatting or wrapper text.' + getGameRulesText()
+
     const responseText = await callAI({
-      systemText: 'You are a League of Legends in-game coach giving a game plan at match start. Analyze the matchup and return a JSON object with exactly two keys:\n1. "advice": A string of exactly 2 sentences: one laning strategy based on the champion\'s general playstyle and matchup, one win condition. Focus on macro patterns. Avoid referencing specific ability names. If player intel with ranks is included, call out high-elo threats by name.\n2. "targetCS": A number representing the recommended target CS per minute for this matchup (e.g., between 5.0 and 9.5). Default to 7.0 if unsure.\nReturn ONLY the JSON object. Do not include markdown formatting or wrapper text.' + getGameRulesText(),
+      systemText: baseSystem,
       userText: prompt, maxTokens: 200,
     })
     if (!responseText) return null

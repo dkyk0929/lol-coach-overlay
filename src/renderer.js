@@ -297,6 +297,7 @@ function freshState() {
     nextDragonSpawn: 300,
     nextBaronSpawn: 1200,
     isARAM: false,
+    unsupportedMode: false,
     aiMessageAt: -999,
     gameResult: null,
     alertLogFull: [],
@@ -443,6 +444,21 @@ window.lolCoach.onGameData((data) => {
     document.querySelector('.drake-sep').textContent = ''
     $('obj-countdown').textContent = ''
   }
+
+  // Anything that isn't ARAM or modern Summoner's Rift (e.g. League Classic,
+  // which uses old-school objective/item rules we don't track) gets disabled
+  // rather than risk confidently giving wrong advice. Only acts on a positive
+  // detection — a blank gameMode on an early tick never triggers this, so a
+  // real SR/ARAM game can't get falsely locked out by incomplete first-tick data.
+  if (!state.unsupportedMode && !state.isARAM && gameData.gameMode && gameData.gameMode !== 'CLASSIC') {
+    state.unsupportedMode = true
+    console.log('Unsupported game mode detected, disabling tracking:', gameData.gameMode, gameData.mapName, gameData.mapNumber)
+    gameScreen.classList.add('hidden')
+    waitingScreen.classList.remove('hidden')
+    const sub = document.querySelector('.waiting-sub')
+    if (sub) sub.textContent = `Unsupported mode (${gameData.gameMode}) — coaching disabled`
+  }
+  if (state.unsupportedMode) return
 
   state.gameTime   = gameData.gameTime
   state.allPlayers = allPlayers

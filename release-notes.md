@@ -1,3 +1,10 @@
+## LoL Coach Overlay v1.9.8 - Disable Tracking on Unsupported Game Modes (League Classic)
+
+### New Features
+- Patch 26.15 added League Classic, a permanent game mode using old-school objective/item/jungle rules completely different from modern Summoner's Rift (small early Dragon/Baron, Wraiths instead of Raptors, classic items, no Void Grubs). The app previously had no way to distinguish it from a normal SR game and would confidently give wrong advice using modern rules.
+- The app now only actively tracks recognized modes (`ARAM` and modern SR's `CLASSIC`). Any other `gameMode` value — League Classic almost certainly reports its own distinct string — disables tracking entirely: the HUD stays hidden, the waiting screen shows "Unsupported mode (X) — coaching disabled", and no objective/item/jungler logic runs. Only acts on a positive, non-blank detection, so a real SR/ARAM game can never be falsely locked out by incomplete first-tick data.
+- Verified via live web search that patch 26.15's changes to standard Summoner's Rift are otherwise limited to minor item number tweaks (already covered by the existing live Data Dragon recipe fetch) and Bel'Veth's full rework (already covered by the live champion-kit fetch) — no other data or logic needed updating.
+
 ## LoL Coach Overlay v1.9.7 - Complete ARAM In-Game AI Coaching & Multi-Signal Detection Fix
 
 ### Bug Fixes

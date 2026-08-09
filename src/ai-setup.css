@@ -346,3 +346,87 @@ body {
 #activate-btn:active {
   transform: scale(0.99);
 }
+
+/* ── Riot Scout section ── */
+#riot-section {
+  border-top: 1px solid var(--border-color);
+  padding-top: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  flex-shrink: 0;
+}
+#riot-status-bar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 14px;
+  border-radius: 6px;
+  border: 1px solid var(--border-color);
+  background: rgba(10, 15, 26, 0.5);
+}
+#riot-status-bar #riot-status-dot { font-size: 14px; line-height: 1; color: var(--text-muted); }
+#riot-status-bar #riot-status-text {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+#riot-status-bar.enabled { border-color: rgba(243, 198, 111, 0.3); background: rgba(243, 198, 111, 0.05); }
+#riot-status-bar.enabled #riot-status-dot,
+#riot-status-bar.enabled #riot-status-text { color: var(--gold); }
+
+#riot-key-row { display: flex; gap: 8px; }
+#riot-region-select {
+  background: rgba(0, 222, 201, 0.06);
+  border: 1px solid rgba(0, 222, 201, 0.2);
+  border-radius: 4px;
+  color: var(--text-primary);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  padding: 6px 8px;
+  outline: none;
+  flex-shrink: 0;
+}
+#riot-key-input {
+  flex: 1;
+  background: rgba(0, 222, 201, 0.06);
+  border: 1px solid rgba(0, 222, 201, 0.2);
+  border-radius: 4px;
+  color: var(--text-primary);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  padding: 6px 10px;
+  outline: none;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+#riot-key-input::placeholder { color: var(--text-muted); }
+#riot-key-input:focus        { border-color: rgba(0, 222, 201, 0.5); box-shadow: 0 0 8px rgba(0, 222, 201, 0.15); }
+
+#riot-save-btn {
+  background: rgba(0, 222, 201, 0.1);
+  border: 1px solid rgba(0, 222, 201, 0.4);
+  border-radius: 4px;
+  color: var(--teal);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  letter-spacing: 1px;
+  padding: 6px 18px;
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+#riot-save-btn:hover {
+  background: rgba(0, 222, 201, 0.2);
+  border-color: var(--teal);
+}
+
+#riot-save-feedback {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  min-height: 14px;
+}
+#riot-save-feedback.success { color: var(--green); }
+#riot-save-feedback.error   { color: var(--red); }

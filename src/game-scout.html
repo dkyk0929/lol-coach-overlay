@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' https://raw.communitydragon.org data:">
-  <title>Game Scout</title>
+  <title>Match Scout</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -13,21 +13,19 @@
 <div id="app">
 
   <div id="header">
-    <span id="header-label">PRE-GAME SCOUT</span>
+    <span id="header-label">MATCH SCOUT</span>
     <button id="btn-close">✕</button>
   </div>
 
-  <div id="teams">
-    <div id="ally-col" class="team-col">
-      <div class="team-header ally-header">▲ ALLIES</div>
-      <div id="ally-list"></div>
-    </div>
-    <div id="divider"></div>
-    <div id="enemy-col" class="team-col">
-      <div class="team-header enemy-header">ENEMIES ▲</div>
-      <div id="enemy-list"></div>
-    </div>
+  <div id="body">
+    <div class="team-header ally-header">▲ ALLIES</div>
+    <div id="ally-grid" class="team-grid"></div>
+
+    <div class="team-header enemy-header">▲ ENEMIES</div>
+    <div id="enemy-grid" class="team-grid"></div>
   </div>
+
+  <div id="match-tooltip" class="hidden"></div>
 
 </div>
 <script src="game-scout.js"></script>

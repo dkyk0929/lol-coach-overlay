@@ -1,22 +1,32 @@
 {
   "name": "lol-coach-overlay",
-  "version": "1.9.8",
+  "version": "2.0.0",
   "description": "League of Legends real-time coaching overlay",
   "main": "main.js",
   "scripts": {
     "start": "electron .",
-    "dist": "electron-builder --win --x64"
+    "dist": "electron-builder --win --x64",
+    "start:ow": "ow-electron .",
+    "dist:ow": "ow-electron-builder --win --x64 --publish=never"
   },
   "dependencies": {
     "uiohook-napi": "^1.5.5"
   },
   "devDependencies": {
+    "@overwolf/ow-electron": "^39.8.12",
+    "@overwolf/ow-electron-builder": "^26.9.2",
     "electron": "^28.0.0",
     "electron-builder": "^24.13.3"
   },
+  "overwolf": {
+    "packages": [
+      "gep",
+      "overlay"
+    ]
+  },
   "build": {
     "appId": "com.lolcoach.overlay",
-    "productName": "LoL Coach Overlay",
+    "productName": "Rift SensAI",
     "win": {
       "target": [
         "portable"

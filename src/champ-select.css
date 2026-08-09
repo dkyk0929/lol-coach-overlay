@@ -211,8 +211,17 @@ body {
 /* ── AI section ── */
 #ai-section {
   border-top: 1px solid var(--border-color);
-  padding: 5px 14px 7px;
+  padding: 5px 14px 8px;
   flex-shrink: 0;
+}
+#ai-label {
+  font-family: var(--font-sans);
+  font-size: 8px;
+  font-weight: 700;
+  letter-spacing: 2px;
+  color: var(--teal);
+  opacity: 0.7;
+  margin-bottom: 5px;
 }
 #ai-content {
   font-family: var(--font-sans);
@@ -221,6 +230,37 @@ body {
   line-height: 1.5;
   white-space: pre-line;
 }
+#ai-content.hidden     { display: none; }
 #ai-content.waiting   { color: var(--text-muted); font-style: italic; }
 #ai-content.loading   { color: var(--text-muted); }
 #ai-content.locked-in { color: var(--green); }
+
+/* ── AI pick cards ── */
+#ai-cards {
+  display: flex;
+  gap: 7px;
+}
+.pick-card {
+  flex: 1;
+  min-width: 0;
+  background: rgba(0, 222, 201, 0.05);
+  border: 1px solid rgba(0, 222, 201, 0.2);
+  border-radius: 6px;
+  padding: 6px 9px;
+}
+.pick-name {
+  font-family: var(--font-sans);
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--teal);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin-bottom: 2px;
+}
+.pick-reason {
+  font-family: var(--font-sans);
+  font-size: 9px;
+  color: var(--text-muted);
+  line-height: 1.35;
+}

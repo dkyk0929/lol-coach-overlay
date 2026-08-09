@@ -1,3 +1,34 @@
+## Rift SensAI v2.0.0 - Match Scout, Riot API Integration & Rebrand
+
+This is a major update — the app is renamed from "LoL Coach Overlay" to **Rift SensAI**, and adds a full opponent/teammate scouting system alongside a pass on Riot API compliance.
+
+### New Feature: Match Scout (F10)
+
+A new always-on-demand panel shows scouting info for all 10 players in your match, sorted by lane (TOP/JG/MID/BOT/SUP) so matching lanes line up between your team and the enemy team.
+
+**Setup**: open the AI Coaching panel (✦ button) → "Opponent Scan" section → paste a free Riot Developer API key (get one at [developer.riotgames.com](https://developer.riotgames.com)) → Save. A personal Dev key works but expires every 24 hours; apply for a Production key if you want it to stay active without re-pasting daily.
+
+**Using it**: press **F10** during a match (you'll need to alt-tab to the app window first — League's anti-cheat blocks background hotkeys, same limitation the existing Ctrl+Shift+C control panel has). Each player's card shows:
+- **Rank** — tier, division, season win rate and total ranked games (from the League Client)
+- **Recent form** — win/loss ring for their last 8 games, hover it for a per-game breakdown (champion, K/D/A, CS/min)
+- **On this champion** — a second ring showing their win rate specifically on the champion they locked in this game
+- **Threat / streak / weak labels** — flags when someone has a strong (or weak) recent record on their pick, so you know who to respect and who might be a stretch pick. These are explicitly small-sample heuristics (max 8 games), not a claim of rigorous statistics.
+- **Account hidden** — shown at the same card size (not blank) when a player's data can't be resolved (bots, private profiles)
+
+Drag any card to manually fix the lane order if the game's own position data is wrong for someone.
+
+### Riot API Compliance Pass
+
+Went through Riot's developer policy (which explicitly prohibits real-time overlays that tell players what to do right now, vs. informational/reflective coaching) and reworded every live alert and the in-game AI coaching prompt from command phrasing ("push now", "ward up", "crash wave and roam") to informational/analytical phrasing that states the situation and lets the player decide. Covers the timeline alert system, jungler/recall alerts, kill/objective event alerts, and the live AI coaching system prompt. Pre-game and post-game AI advice were already compliant (Riot's policy explicitly allows static, reflective coaching) and didn't need changes.
+
+### Removed
+
+- **F5–F9 manual pings** — removed entirely (hotkeys, IPC, UI). Unused in practice; the automatic jungler/missing-laner detection system remains.
+
+### Rebrand
+
+- App renamed to **Rift SensAI** throughout the UI, window titles, and tray menu.
+
 ## LoL Coach Overlay v1.9.8 - Disable Tracking on Unsupported Game Modes (League Classic)
 
 ### New Features

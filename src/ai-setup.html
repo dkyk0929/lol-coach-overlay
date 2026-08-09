@@ -93,6 +93,31 @@
       <div id="save-feedback" class="hidden"></div>
     </div>
 
+    <!-- Riot Scout (optional, separate from AI provider) -->
+    <div id="riot-section">
+      <div class="how-to-title">OPPONENT SCAN (OPTIONAL — RIOT API KEY)</div>
+      <div class="steps">
+        <div class="step"><span class="step-n">1</span><div>Go to <span class="link" data-url="https://developer.riotgames.com">developer.riotgames.com</span> and sign in with your Riot account</div></div>
+        <div class="step"><span class="step-n">2</span><div>Copy your <strong>Development API Key</strong> from the dashboard (expires every 24h — apply for a Production key later for permanent use)</div></div>
+        <div class="step"><span class="step-n">3</span><div>Pick your region below, paste the key, and click SAVE</div></div>
+      </div>
+      <div id="riot-status-bar">
+        <span id="riot-status-dot">●</span>
+        <span id="riot-status-text">Checking...</span>
+      </div>
+      <div id="riot-key-row">
+        <select id="riot-region-select">
+          <option value="americas">Americas (NA/BR/LAN/LAS)</option>
+          <option value="europe">Europe (EUW/EUNE/TR/RU)</option>
+          <option value="asia">Asia (KR/JP)</option>
+          <option value="sea">SEA (OCE/PH/SG/TH/TW/VN)</option>
+        </select>
+        <input id="riot-key-input" type="password" placeholder="Paste Riot API key here" autocomplete="off" spellcheck="false">
+        <button id="riot-save-btn">SAVE</button>
+      </div>
+      <div id="riot-save-feedback" class="hidden"></div>
+    </div>
+
   </div>
 </div>
 <script src="ai-setup.js"></script>

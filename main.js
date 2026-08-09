@@ -21,6 +21,8 @@ let anthropicApiKey = null
 let geminiApiKey = null
 let aiProvider = 'anthropic'
 let lastAICallTime  = 0
+let riotApiKey = null
+let riotRegion = 'americas'   // continent routing for match-v5: americas | europe | asia | sea
 
 // ── Battle log ────────────────────────────────────────────────────────────────
 const battleLogPath = path.join(app.getPath('userData'), 'battle-log.json')
@@ -135,7 +137,7 @@ function buildTrayMenu() {
     },
     { type: 'separator' },
     {
-      label: 'Quit LoL Coach',
+      label: 'Quit Rift SensAI',
       click: () => {
         app.quit()
       },
@@ -147,7 +149,7 @@ function createTray() {
   try {
     const iconPath = path.join(__dirname, 'assets', 'icon.ico')
     tray = new Tray(iconPath)
-    tray.setToolTip('LoL Coach Overlay')
+    tray.setToolTip('Rift SensAI')
     tray.setContextMenu(buildTrayMenu())
     tray.on('click', () => toggleControlPanel())
   } catch (e) {
@@ -256,6 +258,32 @@ ipcMain.handle('get-ai-status', () => {
     aiProvider: activeProvider,
     hasKey: hasKey
   }
+})
+
+ipcMain.handle('get-riot-status', () => {
+  const cfg = loadConfig()
+  return { hasRiotKey: !!cfg.riotApiKey, riotRegion: cfg.riotRegion || 'americas' }
+})
+
+ipcMain.handle('save-riot-api-key', async (_, key, region) => {
+  const trimmed = key.trim()
+  const originalKey = riotApiKey
+  const originalRegion = riotRegion
+  riotApiKey = trimmed
+  riotRegion = region || 'americas'
+  try {
+    // A bogus puuid still round-trips through auth — Riot rejects it with 400/404 if the key
+    // is valid, or 401/403 if the key itself is bad. Either way we learn if the key works.
+    await fetchRiotAPI('/lol/match/v5/matches/by-puuid/invalid-test-puuid/ids').catch((e) => {
+      if (e.message.includes('401') || e.message.includes('403')) throw new Error('Invalid or expired Riot API key')
+    })
+  } catch (err) {
+    riotApiKey = originalKey
+    riotRegion = originalRegion
+    return { success: false, error: err.message }
+  }
+  saveConfig({ riotApiKey: trimmed, riotRegion })
+  return { success: true }
 })
 
 ipcMain.handle('save-api-key-from-setup', async (_, provider, key) => {
@@ -413,6 +441,8 @@ function initAI(cfg) {
   anthropicApiKey = cfg.apiKey?.trim() || null
   geminiApiKey = cfg.geminiApiKey?.trim() || null
   aiProvider = cfg.aiProvider || 'anthropic'
+  riotApiKey = cfg.riotApiKey?.trim() || null
+  riotRegion = cfg.riotRegion || 'americas'
 }
 
 let gameRulesCached = null
@@ -736,6 +766,135 @@ function fetchJSON(url) {
   })
 }
 
+// ── Riot public API (match history scan) ───────────────────────────────────────
+// Dev keys are rate-limited to 20 req/s — space calls out to stay well under that.
+let riotQueueTail = Promise.resolve()
+function fetchRiotAPI(urlPath) {
+  const run = () => new Promise((resolve, reject) => {
+    if (!riotApiKey) { reject(new Error('No Riot API key configured')); return }
+    https.get(`https://${riotRegion}.api.riotgames.com${urlPath}`, {
+      headers: {
+        'X-Riot-Token': riotApiKey,
+        // Riot's edge/WAF blocks requests with no User-Agent (returns a bare 403) — send one.
+        'User-Agent': 'RiftSensAI/1.0 (Electron)',
+      },
+    }, (res) => {
+      let data = ''
+      res.on('data', c => data += c)
+      res.on('end', () => {
+        if (res.statusCode === 200) {
+          try { resolve(JSON.parse(data)) } catch { reject(new Error('Invalid JSON from Riot API')) }
+        } else {
+          console.log(`Riot API ${res.statusCode} on ${urlPath}:`, data.slice(0, 300))
+          reject(new Error(`Riot API HTTP ${res.statusCode}`))
+        }
+      })
+    }).on('error', reject)
+  })
+  const next = riotQueueTail.then(run, run)
+  riotQueueTail = next.catch(() => {}).then(() => new Promise(r => setTimeout(r, 60)))
+  return next
+}
+
+const matchDetailCache = {}   // matchId → parsed match json, cleared per app session
+const riotPuuidCache = {}     // "gameName#tagLine" (lower) → puuid resolved via our own key
+
+// LCU's puuid is issued under the League Client's own session, not our Riot API key —
+// match-v5 rejects it with "Exception decrypting" (400) because encrypted puuids are
+// tied to the key that issued them. Resolve a fresh one via account-v1 using Riot ID instead.
+async function resolvePuuidForRiotAPI(gameName, tagLine) {
+  if (!gameName || !tagLine) return null
+  const cacheKey = `${gameName}#${tagLine}`.toLowerCase()
+  if (riotPuuidCache[cacheKey]) return riotPuuidCache[cacheKey]
+  try {
+    const account = await fetchRiotAPI(`/riot/account/v1/accounts/by-riot-id/${encodeURIComponent(gameName)}/${encodeURIComponent(tagLine)}`)
+    if (account?.puuid) riotPuuidCache[cacheKey] = account.puuid
+    return account?.puuid ?? null
+  } catch (e) {
+    console.log(`resolvePuuidForRiotAPI failed for ${cacheKey}:`, e.message)
+    return null
+  }
+}
+
+// Returns { games, wins, losses, kda, csPerMin, champs: [{name,games,wins}], matches: [{champion,win,kills,deaths,assists}], display, currentChampRecord }
+async function getMatchHistorySummary(puuid, currentChampionName) {
+  const empty = { games: 0, wins: 0, losses: 0, kda: '', csPerMin: '', champs: [], matches: [], display: '', currentChampRecord: '', currentChampWins: 0, currentChampLosses: 0 }
+  if (!riotApiKey) { console.log('getMatchHistorySummary skipped: no Riot API key loaded'); return empty }
+  if (!puuid) { console.log('getMatchHistorySummary skipped: no puuid'); return empty }
+  try {
+    const ids = await fetchRiotAPI(`/lol/match/v5/matches/by-puuid/${puuid}/ids?start=0&count=8`)
+    console.log(`getMatchHistorySummary: ${Array.isArray(ids) ? ids.length : 'invalid'} match ids for puuid ${puuid.slice(0, 8)}... region=${riotRegion}`)
+    if (!Array.isArray(ids) || !ids.length) return empty
+
+    let wins = 0, losses = 0
+    let totalK = 0, totalD = 0, totalA = 0
+    let totalCS = 0, totalMin = 0
+    const champCounts = {}   // name → { games, wins }
+    const matches = []       // per-game detail, most recent first (ids come back in that order)
+    for (const id of ids) {
+      let match = matchDetailCache[id]
+      if (!match) {
+        match = await fetchRiotAPI(`/lol/match/v5/matches/${id}`)
+        matchDetailCache[id] = match
+      }
+      const p = match?.info?.participants?.find(pp => pp.puuid === puuid)
+      if (!p) continue
+      if (p.win) wins++; else losses++
+      totalK += p.kills ?? 0
+      totalD += p.deaths ?? 0
+      totalA += p.assists ?? 0
+      const cs = (p.totalMinionsKilled ?? 0) + (p.neutralMinionsKilled ?? 0)
+      const minutes = (match.info.gameDuration ?? 0) / 60
+      totalCS += cs
+      totalMin += minutes
+      matches.push({
+        champion: p.championName,
+        win: p.win,
+        kills: p.kills ?? 0,
+        deaths: p.deaths ?? 0,
+        assists: p.assists ?? 0,
+        csPerMin: minutes > 0 ? (cs / minutes).toFixed(1) : '0',
+      })
+      const entry = champCounts[p.championName] ?? { games: 0, wins: 0 }
+      entry.games++
+      if (p.win) entry.wins++
+      champCounts[p.championName] = entry
+    }
+    const games = wins + losses
+    if (games === 0) return empty
+
+    const champs = Object.entries(champCounts)
+      .map(([name, c]) => ({ name, games: c.games, wins: c.wins }))
+      .sort((a, b) => b.games - a.games)
+
+    const kda = `${(totalK / games).toFixed(1)} / ${(totalD / games).toFixed(1)} / ${(totalA / games).toFixed(1)}`
+    const csPerMin = totalMin > 0 ? (totalCS / totalMin).toFixed(1) : ''
+
+    const champsStr = champs
+      .map(c => c.games > 1 ? `${c.name} ${c.wins}W-${c.games - c.wins}L` : c.name)
+      .join(', ')
+    const display = `Last ${games}: ${wins}W ${losses}L · ${champsStr}`
+
+    let currentChampRecord = ''
+    let currentChampWins = 0, currentChampLosses = 0
+    if (currentChampionName) {
+      const c = champCounts[currentChampionName]
+      if (c) {
+        currentChampWins = c.wins
+        currentChampLosses = c.games - c.wins
+        currentChampRecord = `${currentChampionName}: ${c.wins}W ${c.games - c.wins}L`
+      } else {
+        currentChampRecord = `No recent games on ${currentChampionName} (last ${games})`
+      }
+    }
+
+    return { games, wins, losses, kda, csPerMin, champs, matches, display, currentChampRecord, currentChampWins, currentChampLosses }
+  } catch (e) {
+    console.log('getMatchHistorySummary error:', e.message)
+    return empty
+  }
+}
+
 async function loadChampionMap() {
   // Try LCU first (works offline)
   try {
@@ -922,6 +1081,63 @@ function closeChampSelectWindow() {
   lastCSKey = null
 }
 
+// ── Game scout window (F10 toggle, in-game opponent scan) ──────────────────────
+let gameScoutWindow = null
+
+function createGameScoutWindow() {
+  if (gameScoutWindow && !gameScoutWindow.isDestroyed()) { gameScoutWindow.focus(); return }
+  const cfg = loadConfig()
+  const { width: sw, height: sh } = screen.getPrimaryDisplay().workAreaSize
+  const w = 920, h = 620
+  gameScoutWindow = new BrowserWindow({
+    width: w, height: h,
+    x: cfg.scoutX ?? Math.floor((sw - w) / 2),
+    y: cfg.scoutY ?? Math.floor((sh - h) / 2),
+    transparent: true,
+    backgroundColor: '#00000000',
+    frame: false,
+    alwaysOnTop: true,
+    skipTaskbar: true,
+    resizable: false,
+    hasShadow: false,
+    focusable: true,
+    webPreferences: {
+      preload: path.join(__dirname, 'game-scout-preload.js'),
+      contextIsolation: true,
+      nodeIntegration: false,
+    },
+  })
+  gameScoutWindow.loadFile(path.join(__dirname, 'src', 'game-scout.html'))
+  gameScoutWindow.setAlwaysOnTop(true, 'screen-saver')
+  gameScoutWindow.on('moved', () => {
+    if (gameScoutWindow && !gameScoutWindow.isDestroyed()) {
+      const [x, y] = gameScoutWindow.getPosition()
+      saveConfig({ scoutX: x, scoutY: y })
+    }
+  })
+  gameScoutWindow.on('closed', () => { gameScoutWindow = null })
+  gameScoutWindow.webContents.once('did-finish-load', () => {
+    if (scoutPlayers.length) sendScoutData()
+  })
+}
+
+function toggleGameScoutWindow() {
+  if (gameScoutWindow && !gameScoutWindow.isDestroyed()) { gameScoutWindow.close(); return }
+  createGameScoutWindow()
+}
+
+const LANE_ORDER = { TOP: 0, JUNGLE: 1, MIDDLE: 2, BOTTOM: 3, UTILITY: 4 }
+const byLane = (a, b) => (LANE_ORDER[a.position] ?? 5) - (LANE_ORDER[b.position] ?? 5)
+
+function sendScoutData() {
+  if (!gameScoutWindow || gameScoutWindow.isDestroyed()) return
+  const allies  = scoutPlayers.filter(p => p.isAlly).sort(byLane)
+  const enemies = scoutPlayers.filter(p => !p.isAlly).sort(byLane)
+  gameScoutWindow.webContents.send('scout-data', { allies, enemies })
+}
+
+ipcMain.on('close-scout', () => { if (gameScoutWindow && !gameScoutWindow.isDestroyed()) gameScoutWindow.close() })
+
 // ── Post-game window ──────────────────────────────────────────────────────────
 let postGameWindow = null
 
@@ -1058,7 +1274,7 @@ function createWindow() {
     skipTaskbar: false,
     resizable: false,
     hasShadow: false,
-    title: 'LoL Coach',
+    title: 'Rift SensAI',
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
       contextIsolation: true,
@@ -1246,6 +1462,7 @@ function showGameScout(gameData) {
   // Cache for AI coaching context
   scoutPlayers = [...allies, ...enemies]
   scoutStats   = {}
+  sendScoutData()
 
   console.log(`Scout: ${allies.length} allies, ${enemies.length} enemies (myTeam=${myTeam})`)
 
@@ -1385,12 +1602,16 @@ ipcMain.handle('scout-stats', async (_, { summonerName }) => {
         const wr    = total > 0 ? Math.round((wins / total) * 100) : 0
         const tName = soloQ.tier.charAt(0) + soloQ.tier.slice(1).toLowerCase()
         const div   = (soloQ.division && soloQ.division !== 'NA') ? ` ${soloQ.division}` : ''
-        rankDisplay = `${tName}${div} · ${wr}%`
+        rankDisplay = `${tName}${div} · ${wr}% (${wins}W ${soloQ.losses ?? 0}L, ${total} games)`
         tier = soloQ.tier.toLowerCase()
       }
     } catch {}
 
-    const stats = { display: rankDisplay, tier }
+    const champDisplayName = scoutPlayers.find(p => p.summonerName === summonerName)?.champion
+    const champInternalName = champDisplayName ? nameToInternal[champDisplayName.toLowerCase()] : null
+    const riotApiPuuid = await resolvePuuidForRiotAPI(summoner.gameName, summoner.tagLine)
+    const history = await getMatchHistorySummary(riotApiPuuid, champInternalName)
+    const stats = { display: rankDisplay, tier, history }
     scoutStats[summonerName] = stats   // cache for AI coaching
     return stats
   } catch (e) {
@@ -1446,7 +1667,7 @@ ipcMain.handle('lcu-stats', async (_, { summonerId, championId }) => {
         const wr    = total > 0 ? Math.round((wins / total) * 100) : 0
         const tName = soloQ.tier.charAt(0) + soloQ.tier.slice(1).toLowerCase()
         const div   = (soloQ.division && soloQ.division !== 'NA') ? ` ${soloQ.division}` : ''
-        rankDisplay = `${tName}${div} · ${wr}%`
+        rankDisplay = `${tName}${div} · ${wr}% (${wins}W ${soloQ.losses ?? 0}L, ${total} games)`
         tier = soloQ.tier.toLowerCase()
       }
     } catch {}
@@ -1461,7 +1682,14 @@ ipcMain.handle('lcu-stats', async (_, { summonerId, championId }) => {
       } catch {}
     }
 
-    return { display: rankDisplay + masteryStr, tier }
+    // Riot match-v5 uses internal codenames (e.g. "MonkeyKing"), not display names —
+    // resolve via the display-name map since we only have the numeric championId here.
+    const displayName = championId > 0 ? champIdMap[championId] : null
+    const internalName = displayName ? nameToInternal[displayName.toLowerCase()] : null
+
+    const riotApiPuuid = await resolvePuuidForRiotAPI(summoner.gameName, summoner.tagLine)
+    const history = await getMatchHistorySummary(riotApiPuuid, internalName)
+    return { display: rankDisplay + masteryStr, tier, history }
   } catch (e) {
     console.log('lcu-stats error:', e.message)
     return null
@@ -1490,8 +1718,8 @@ ipcMain.handle('ai-coaching', async (event, prompt) => {
   try {
     const isARAM = prompt.includes('ARAM')
     const systemText = isARAM
-      ? 'You are a League of Legends coach for an ARAM game on Howling Abyss. Give 1-2 specific actionable sentences focused on 5v5 teamfighting, skill-shot positioning, target prioritization, and item counter-builds. DO NOT mention Void Grubs, Scuttle Crab, Dragon, Baron, junglers, or roaming. NEVER recommend buying or building an item that is already listed in the player\'s inventory (\'My items\'). Name champions. No fluff, no markdown. Max 50 words.'
-      : 'You are a League of Legends in-game coach. Give 1-2 specific actionable sentences tailored to the player\'s champion, role, and current state. Focus on macro play, win conditions, positioning, build adjustments, and objective control. Analyze the enemy team composition/items to suggest counter items (e.g. Magic Resist, Anti-heal, Pen) when appropriate. NEVER recommend buying or building an item that is already listed in the player\'s inventory (\'My items\'). Be aware of game momentum (recent events). On death, analyze the killer\'s details to recommend defensive pivots. Never suggest objectives or events that have already passed. Name champions. No fluff, no markdown. Max 50 words.' + getGameRulesText()
+      ? 'You are a League of Legends coach for an ARAM game on Howling Abyss. Give 1-2 sentences of situational analysis focused on 5v5 teamfighting, skill-shot positioning, target prioritization, and item counter-builds — describe what matters about the current situation and why, and let the player decide what to do with it, rather than issuing a direct command. DO NOT mention Void Grubs, Scuttle Crab, Dragon, Baron, junglers, or roaming. NEVER recommend buying or building an item that is already listed in the player\'s inventory (\'My items\'). Name champions. No fluff, no markdown. Max 50 words.'
+      : 'You are a League of Legends in-game coach. Give 1-2 sentences of situational analysis tailored to the player\'s champion, role, and current state — describe what matters about the current situation and why (macro play, win conditions, positioning, build adjustments, objective control) and let the player decide what to do with it, rather than issuing a direct command. Analyze the enemy team composition/items to suggest counter items (e.g. Magic Resist, Anti-heal, Pen) when appropriate. NEVER recommend buying or building an item that is already listed in the player\'s inventory (\'My items\'). Be aware of game momentum (recent events). On death, analyze the killer\'s details to explain the risk for next time. Never suggest objectives or events that have already passed. Name champions. No fluff, no markdown. Max 50 words.' + getGameRulesText()
 
     return trimToSentence(await callAI({
       systemText,
@@ -1615,30 +1843,21 @@ app.whenReady().then(() => {
     if (e.ctrlKey && e.shiftKey && e.keycode === UiohookKey.C) {
       setImmediate(() => toggleControlPanel())
     }
+    if (e.keycode === UiohookKey.F10) {
+      console.log('F10 pressed (uiohook) — toggling scout window')
+      setImmediate(() => toggleGameScoutWindow())
+    }
   })
   uIOhook.start()
 
-  globalShortcut.register('F9', () => {
-    if (mainWindow && !mainWindow.isDestroyed())
-      mainWindow.webContents.send('jg-ping')
-  })
+  const regLog = (key, ok) => console.log(`Hotkey ${key}: ${ok ? 'registered' : 'FAILED — already in use by another app/system binding'}`)
 
-  // Manual lane pings — lets the player confirm a sighting with their own
-  // eyes/minimap, since the Live Client API has no fog-of-war visibility data.
-  const LANE_PING_KEYS = { F5: 'TOP', F6: 'MIDDLE', F7: 'BOTTOM', F8: 'UTILITY' }
-  for (const [key, position] of Object.entries(LANE_PING_KEYS)) {
-    globalShortcut.register(key, () => {
-      if (mainWindow && !mainWindow.isDestroyed())
-        mainWindow.webContents.send('lane-ping', position)
-    })
-  }
-
-  globalShortcut.register('F12', () => {
+  regLog('F12', globalShortcut.register('F12', () => {
     if (mainWindow && !mainWindow.isDestroyed()) {
       if (mainWindow.webContents.isDevToolsOpened()) mainWindow.webContents.closeDevTools()
       else mainWindow.webContents.openDevTools({ mode: 'detach' })
     }
-  })
+  }))
 })
 
 app.on('will-quit', () => {

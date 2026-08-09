@@ -84,6 +84,27 @@ function playerRow(p, isAlly, myLocked) {
   </div>`
 }
 
+// Parses "1. ChampName — reason" lines (also tolerates a plain "-" instead of an em dash)
+function parsePicks(text) {
+  const picks = []
+  for (const line of text.split('\n')) {
+    const m = line.match(/^\s*\d+[.):]?\s*([\w' .]+?)\s*[—–-]\s*(.+?)\s*$/)
+    if (m) picks.push({ champion: m[1].trim(), reason: m[2].trim() })
+  }
+  return picks
+}
+
+function pickCard({ champion, reason }) {
+  return `<div class="pick-card">
+    <div class="pick-name">${escapeHtml(champion)}</div>
+    <div class="pick-reason">${escapeHtml(reason)}</div>
+  </div>`
+}
+
+function escapeHtml(str) {
+  return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+}
+
 // ── AI recommendations ────────────────────────────────────────────────────────
 async function maybeRequestAI({ position, myTeam, theirTeam, bans, myLocked }) {
   if (aiPending) return
@@ -97,6 +118,7 @@ async function maybeRequestAI({ position, myTeam, theirTeam, bans, myLocked }) {
       el.className   = 'locked-in'
       el.textContent = `✓ Locked in: ${myLocked}`
       el.style.color = ''
+      document.getElementById('ai-cards').innerHTML = ''
     }
     return
   }
@@ -106,10 +128,12 @@ async function maybeRequestAI({ position, myTeam, theirTeam, bans, myLocked }) {
   if (promptKey === lastAIPromptKey) return
   lastAIPromptKey = promptKey
 
-  const el = document.getElementById('ai-content')
+  const el       = document.getElementById('ai-content')
+  const cardsEl  = document.getElementById('ai-cards')
   el.className   = 'loading'
   el.style.color = ''
   el.textContent = '✦ Asking AI for picks...'
+  cardsEl.innerHTML = ''
 
   const posName = { TOP:'Top', JUNGLE:'Jungle', MIDDLE:'Mid', BOTTOM:'Bot', UTILITY:'Support' }[position] ?? position
   const lines = [
@@ -124,9 +148,17 @@ async function maybeRequestAI({ position, myTeam, theirTeam, bans, myLocked }) {
   try {
     const result = await window.cs.aiRecommend(lines.join('\n'))
     if (result) {
-      el.className   = ''
-      el.style.color = '#7ee8f5'
-      el.textContent = '✦ ' + result
+      const picks = parsePicks(result)
+      if (picks.length) {
+        el.textContent = ''
+        el.className   = 'hidden'
+        cardsEl.innerHTML = picks.map(pickCard).join('')
+      } else {
+        // Fallback: AI didn't follow the expected format — show raw text rather than nothing
+        el.className   = ''
+        el.style.color = '#7ee8f5'
+        el.textContent = '✦ ' + result
+      }
     } else {
       el.className   = 'waiting'
       el.textContent = 'AI unavailable — set API key in HUD'

@@ -174,4 +174,59 @@ function showFeedback(msg, type) {
   feedback.className = type || ''
 }
 
+// ── Riot Scout key section ───────────────────────────────────────────────────
+const riotStatusBar    = document.getElementById('riot-status-bar')
+const riotStatusDot    = document.getElementById('riot-status-dot')
+const riotStatusText   = document.getElementById('riot-status-text')
+const riotRegionSelect = document.getElementById('riot-region-select')
+const riotKeyInput     = document.getElementById('riot-key-input')
+const riotSaveBtn      = document.getElementById('riot-save-btn')
+const riotFeedback     = document.getElementById('riot-save-feedback')
+
+async function initRiotSection() {
+  const status = await window.aiSetup.getRiotStatus()
+  riotRegionSelect.value = status.riotRegion || 'americas'
+  if (status.hasRiotKey) {
+    riotStatusBar.className = 'enabled'
+    riotStatusText.textContent = 'OPPONENT SCAN ACTIVE'
+    riotKeyInput.placeholder = 'Paste new key to update'
+  } else {
+    riotStatusBar.className = 'disabled'
+    riotStatusText.textContent = 'NOT SET UP'
+    riotKeyInput.placeholder = 'Paste Riot API key here'
+  }
+}
+
+riotSaveBtn.addEventListener('click', async () => {
+  const key = riotKeyInput.value.trim()
+  if (!key) {
+    showRiotFeedback('Enter your Riot API key first', 'error')
+    return
+  }
+  riotSaveBtn.disabled = true
+  riotSaveBtn.textContent = '...'
+  const res = await window.aiSetup.saveRiotKey(key, riotRegionSelect.value)
+  riotSaveBtn.disabled = false
+  riotSaveBtn.textContent = 'SAVE'
+
+  if (res && res.success) {
+    showRiotFeedback('Key verified and saved! Opponent scan is active.', 'success')
+    riotKeyInput.value = ''
+    initRiotSection()
+  } else {
+    showRiotFeedback(`Error: ${res?.error || 'Failed to save key'}`, 'error')
+  }
+})
+
+riotKeyInput.addEventListener('keydown', (e) => {
+  if (e.key === 'Enter') riotSaveBtn.click()
+})
+
+function showRiotFeedback(msg, type) {
+  riotFeedback.textContent = msg
+  riotFeedback.className = type || ''
+}
+
+initRiotSection()
+
 init()

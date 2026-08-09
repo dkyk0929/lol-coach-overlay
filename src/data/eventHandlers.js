@@ -16,16 +16,16 @@ function handleGameEvent(event, activeName, allPlayers) {
   switch (event.EventName) {
     case 'FirstBlood':
       if (matchName(event.KillerName, activeName))
-        return { msg: '🔴 First Blood! Stay focused, don\'t over-chase', cat: 'kill', pri: 'normal' }
+        return { msg: '🔴 First Blood — yours', cat: 'kill', pri: 'normal' }
       if (matchName(event.VictimName, activeName))
-        return { msg: '🔴 You gave First Blood — play safe, farm back', cat: 'kill', pri: 'warning' }
+        return { msg: '🔴 You gave up First Blood', cat: 'kill', pri: 'warning' }
       return { msg: '🔴 First Blood — enemy team', cat: 'kill', pri: 'normal' }
 
     case 'ChampionKill':
       if (matchName(event.VictimName, activeName))
-        return { msg: '💀 You died — shove wave when you respawn', cat: 'wave', pri: 'warning' }
+        return { msg: '💀 You died', cat: 'wave', pri: 'warning' }
       if (matchName(event.KillerName, activeName))
-        return { msg: '⚔ Kill! Crash the wave now', cat: 'wave', pri: 'normal' }
+        return { msg: '⚔ Kill — wave is open', cat: 'wave', pri: 'normal' }
       return null
 
     case 'DragonKill': {
@@ -40,18 +40,18 @@ function handleGameEvent(event, activeName, allPlayers) {
     case 'BaronKill': {
       const ally   = isAlly(event.KillerName)
       const stolen = event.Stolen === 'True'
-      if (!ally) return { msg: stolen ? '🟣 Baron stolen! Defend base' : '🟣 Enemy Baron — avoid open fights', cat: 'macro', pri: 'urgent' }
-      return             { msg: stolen ? '🟣 Baron stolen! Push now'   : '🟣 Allied Baron — group and push',   cat: 'macro', pri: 'urgent' }
+      if (!ally) return { msg: stolen ? '🟣 Baron stolen by the enemy' : '🟣 Enemy has Baron buff', cat: 'macro', pri: 'urgent' }
+      return             { msg: stolen ? '🟣 Baron stolen — your team has the buff' : '🟣 Your team has Baron buff', cat: 'macro', pri: 'urgent' }
     }
 
     case 'RiftHeraldKill': {
       const ally = isAlly(event.KillerName)
-      if (!ally) return { msg: '⚔ Enemy Herald — expect tower dive', cat: 'macro', pri: 'warning' }
-      return             { msg: '⚔ Allied Herald! Use it on a tower', cat: 'macro', pri: 'normal' }
+      if (!ally) return { msg: '⚔ Enemy has Rift Herald', cat: 'macro', pri: 'warning' }
+      return             { msg: '⚔ Your team has Rift Herald', cat: 'macro', pri: 'normal' }
     }
 
     case 'TurretKilled':
-      return { msg: '🏰 Tower down — crash wave into next tower', cat: 'wave', pri: 'normal' }
+      return { msg: '🏰 Tower down', cat: 'wave', pri: 'normal' }
 
     case 'InhibKilled':
       return { msg: '⚠ Inhibitor down — super minions incoming', cat: 'macro', pri: 'urgent' }

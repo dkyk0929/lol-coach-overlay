@@ -379,36 +379,6 @@ window.lolCoach.getVersion().then(v => {
 
 // ── Window controls already wired above in controls hover zone ───────────────
 
-// ── Manual JG ping (F9) ────────────────────────────────────────────────────────
-window.lolCoach.onJgPing(() => {
-  if (!state.running || state.isARAM || !state.jungler.name) return
-  state.jungler.lastSeenTime  = state.gameTime
-  state.jungler.unseenAlertAt = state.gameTime
-  setJunglerThreat(null)
-  renderJungler()
-  const msg = `📍 ${state.jungler.champion} spotted — timer reset`
-  setFocus(msg, false)
-  window.lolCoach.showCenterNotif(msg, 'normal')
-  speak(`${state.jungler.champion} spotted`, false)
-})
-
-// ── Manual lane pings (F5 Top / F6 Mid / F7 Bot / F8 Support) ────────────────
-window.lolCoach.onLanePing((position) => {
-  if (!state.running) return
-  const enemy = state.allPlayers.find(p => {
-    const me = state.allPlayers.find(pl => matchName(pl.summonerName, state.activeName))
-    return me && p.team !== me.team && p.position === position
-  })
-  if (!enemy) return
-  state.enemyLastSeen[enemy.summonerName] = state.gameTime
-  state.missingAlertAt[enemy.summonerName] = 0
-  const msg = `📍 ${enemy.championName} spotted — timer reset`
-  setFocus(msg, false)
-  speak(`${enemy.championName} spotted`, false)
-})
-
-
-
 // ── IPC: game data ────────────────────────────────────────────────────────────
 window.lolCoach.onGameData((data) => {
   if (!data?.gameData) return
@@ -815,7 +785,7 @@ function checkRespawnAlerts(gameTime) {
     const d30 = `d-${dSpawn}-30`, d15 = `d-${dSpawn}-15`, d0 = `d-${dSpawn}-0`
     if (!state.respawnAlerted.has(d30) && dLeft <= 30 && dLeft > 15) {
       state.respawnAlerted.add(d30)
-      pushAlert('🐉 Dragon respawns in 30s — position now', 'objective', 'warning')
+      pushAlert('🐉 Dragon respawns in 30s', 'objective', 'warning')
     }
     if (!state.respawnAlerted.has(d15) && dLeft <= 15 && dLeft > 0) {
       state.respawnAlerted.add(d15)
@@ -835,7 +805,7 @@ function checkRespawnAlerts(gameTime) {
     const b50 = `b-${bSpawn}-50`, b15 = `b-${bSpawn}-15`, b0 = `b-${bSpawn}-0`
     if (!state.respawnAlerted.has(b50) && bLeft <= 50 && bLeft > 35) {
       state.respawnAlerted.add(b50)
-      pushAlert('🟣 Baron respawns in 50s — ward Baron pit now', 'objective', 'warning')
+      pushAlert('🟣 Baron respawns in 50s', 'objective', 'warning')
     }
     if (!state.respawnAlerted.has(b15) && bLeft <= 15 && bLeft > 0) {
       state.respawnAlerted.add(b15)
@@ -914,10 +884,10 @@ function checkEvents(events, activeName, allPlayers, myTeam) {
         const baronAlly = isAllyName(ev.KillerName, myTeam, allPlayers)
         if (!baronAlly) {
           if (state.allyDrakes < 4) {
-            pushAlert("Enemy Baron — take Dragon if it's up, push side lanes", 'macro', 'warning')
+            pushAlert("Enemy has Baron — Dragon is contestable if it's up", 'macro', 'warning')
           }
         } else {
-          pushAlert('Baron buff — split push side lanes, don\'t fight in jungle', 'macro', 'normal')
+          pushAlert('Your team has Baron buff', 'macro', 'normal')
         }
       }
     }
@@ -986,12 +956,12 @@ function checkPowerSpikes(level, prevLevel, items, prevItemCount) {
   // prevLevel=0 means this is the first data point after a state reset —
   // we don't know the real previous level so skip to avoid stale level alerts
   if (prevLevel === 0) return
-  if (prevLevel < 6  && level >= 6)  pushAlert('🔥 Level 6 — ult unlocked! Look for plays', 'power', 'urgent')
+  if (prevLevel < 6  && level >= 6)  pushAlert('🔥 Level 6 — ultimate unlocked', 'power', 'urgent')
   if (prevLevel < 11 && level >= 11) pushAlert('🔥 Level 11 — ult rank 2 power spike', 'power', 'warning')
-  if (prevLevel < 16 && level >= 16) pushAlert('🔥 Level 16 — max ult! Full power', 'power', 'warning')
+  if (prevLevel < 16 && level >= 16) pushAlert('🔥 Level 16 — max ult, full power', 'power', 'warning')
   if (items.length > prevItemCount && prevItemCount > 0) {
     const item = items[items.length - 1]
-    if (item?.price >= 2500) pushAlert('🛡 Big item completed — look for a fight', 'power', 'normal')
+    if (item?.price >= 2500) pushAlert('🛡 Big item completed — power spike', 'power', 'normal')
   }
 }
 
@@ -1067,8 +1037,8 @@ function updateJungler(gameTime, allPlayers, myTeam) {
   state.jungler.isDead = j.isDead
   state.jungler.level  = j.level
 
-  if (!wasDead && j.isDead)               { state.jungler.lastSeenTime = gameTime; pushAlert(`✅ ${state.jungler.champion} is dead — play aggressive`, 'gank', 'normal') }
-  if (wasDead  && !j.isDead && gameTime > 60) { state.jungler.lastSeenTime = gameTime; pushAlert(`⚠ ${state.jungler.champion} respawned — ward up`, 'gank', 'warning') }
+  if (!wasDead && j.isDead)               { state.jungler.lastSeenTime = gameTime; pushAlert(`✅ ${state.jungler.champion} is dead`, 'gank', 'normal') }
+  if (wasDead  && !j.isDead && gameTime > 60) { state.jungler.lastSeenTime = gameTime; pushAlert(`⚠ ${state.jungler.champion} respawned`, 'gank', 'warning') }
   if (prevLvl  < 6 && j.level >= 6)      pushAlert(`⚠ ${state.jungler.champion} hit 6 — gank threat up`, 'gank', 'warning')
 
   if (!j.isDead) {
@@ -1078,10 +1048,10 @@ function updateJungler(gameTime, allPlayers, myTeam) {
     if (unseen > 90 && gameTime > 300) {
       setJunglerThreat('danger')
       if (sinceWarned > 150) {
-        const msg = `⚠ ${state.jungler.champion} missing — ward up!`
+        const msg = `⚠ ${state.jungler.champion} missing`
         window.lolCoach.showCenterNotif(msg, 'urgent')
         playUrgentSound()
-        speak(`${state.jungler.champion} missing. Ward up!`, true)
+        speak(`${state.jungler.champion} missing`, true)
         state.jungler.unseenAlertAt = gameTime
       }
     } else if (scuttleWin || (gameTime >= 160 && gameTime <= 210)) {
@@ -1113,7 +1083,7 @@ function checkObjectiveJgProximity(gameTime, unseen) {
     if (gameTime - lastAlert < (w.end - w.start) + 5) continue
     state.objJgAlertedAt[w.key] = gameTime
     setJunglerThreat('warning')
-    pushAlert(`👀 ${state.jungler.champion} unaccounted for — likely near ${w.label}, be ready`, 'gank', 'warning')
+    pushAlert(`👀 ${state.jungler.champion} unaccounted for — likely near ${w.label}`, 'gank', 'warning')
     speak(`Watch for ${state.jungler.champion} near ${w.label}`, false)
   }
 }
@@ -1345,10 +1315,10 @@ function checkEnemyRecalls(allPlayers, myTeam, gameTime, myPosition) {
       state.jungler.lastSeenTime = gameTime
       state.jungler.lastSeenSide = 'base (recalled)'
       setJunglerThreat(null)
-      pushAlert('🛍 Enemy JG recalled — ward jungle entrances before they return', 'gank', 'warning')
+      pushAlert('🛍 Enemy jungler recalled', 'gank', 'warning')
     } else {
       const laneLabel = { TOP: 'Top', MIDDLE: 'Mid', BOTTOM: 'Bot', UTILITY: 'Support' }[p.position] ?? 'Enemy laner'
-      pushAlert(`🛍 ${laneLabel} recalled — push the wave / take tempo`, 'wave', 'normal')
+      pushAlert(`🛍 ${laneLabel} recalled`, 'wave', 'normal')
     }
   }
 }
@@ -1420,22 +1390,22 @@ function checkEnemyPushWindow(allPlayers, myTeam, me, gameTime) {
   const lanerDied = newlyDead.find(p => p.position === me.position)
 
   if (totalDead >= 3) {
-    const msg = state.isARAM 
-      ? `${totalDead} enemies down — push turrets and nexus now!` 
-      : `${totalDead} enemies down — take Dragon or Baron now!`
+    const msg = state.isARAM
+      ? `${totalDead} enemies down — numbers advantage`
+      : `${totalDead} enemies down — objectives are open`
     pushAlert(msg, 'push', 'urgent')
-    speak(state.isARAM ? `${totalDead} enemies down! Push the lane now.` : `${totalDead} enemies down! Take an objective.`, true)
+    speak(state.isARAM ? `${totalDead} enemies down. Numbers advantage.` : `${totalDead} enemies down. Objectives are open.`, true)
   } else if (lanerDied && totalDead >= 2) {
     const msg = state.isARAM
-      ? '2 enemies down — push for turrets'
-      : 'Laner + another down — push for plates or Dragon'
+      ? '2 enemies down'
+      : 'Laner down with backup — objective window open'
     pushAlert(msg, 'push', 'warning')
-    speak(state.isARAM ? '2 enemies down. Push the lane.' : 'Laner down with backup. Extend push or take Dragon.', false)
+    speak(state.isARAM ? '2 enemies down.' : 'Laner down with backup. Objective window open.', false)
   } else if (lanerDied) {
     const t = Math.ceil(lanerDied.respawnTimer ?? 0)
     const tStr = t > 0 ? ` — ${t}s window` : ''
-    pushAlert(`Enemy laner dead${tStr} — crash wave and roam`, 'push', 'normal')
-    speak('Enemy laner is dead. Crash the wave and roam.', false)
+    pushAlert(`Enemy laner dead${tStr}`, 'push', 'normal')
+    speak('Enemy laner is dead.', false)
   }
 }
 
@@ -1449,9 +1419,9 @@ function checkRoamWindows(me, opponent, gameTime) {
   if (isDead) {
     if (respawnTimer > 8 && respawnTimer <= 14 && !state.roamAlerts.has(`respawn-soon-${opponent.summonerName}`)) {
       state.roamAlerts.add(`respawn-soon-${opponent.summonerName}`)
-      const msg = `⚠ Enemy ${opponent.championName} respawning in ${Math.ceil(respawnTimer)}s — crash wave and recall`
+      const msg = `⚠ Enemy ${opponent.championName} respawning in ${Math.ceil(respawnTimer)}s`
       pushAlert(msg, 'wave', 'warning')
-      speak(`Enemy ${opponent.championName} respawning in ${Math.ceil(respawnTimer)} seconds. Crash wave and recall.`, false)
+      speak(`Enemy ${opponent.championName} respawning in ${Math.ceil(respawnTimer)} seconds.`, false)
     }
   } else {
     if (state.laneOpponentWasDead && !isDead) {
@@ -1467,7 +1437,7 @@ function checkRoamWindows(me, opponent, gameTime) {
 
     const boughtItem = oppItems.some(id => !prevItems.includes(id))
     if (boughtItem && prevItems.length > 0 && !state.laneOpponentWasDead) {
-      const msg = `⚡ Enemy ${opponent.championName} recalled & bought items — check their power spike`
+      const msg = `⚡ Enemy ${opponent.championName} recalled & bought items — possible power spike`
       pushAlert(msg, 'wave', 'normal')
       speak(`Enemy ${opponent.championName} recalled and bought items.`, false)
     }

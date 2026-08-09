@@ -1,3 +1,8 @@
+## Rift SensAI v2.0.1 - Match Scout Rough-Edge Notice
+
+### Notes
+- Added a clear in-app notice to the Opponent Scan setup section: since we're still on a personal Riot Dev key (not yet approved for Production), the key expires every 24 hours and needs to be re-copied and re-saved roughly once a day for Match Scout to keep working. This will go away once Riot approves our Production key application.
+
 ## Rift SensAI v2.0.0 - Match Scout, Riot API Integration & Rebrand
 
 This is a major update — the app is renamed from "LoL Coach Overlay" to **Rift SensAI**, and adds a full opponent/teammate scouting system alongside a pass on Riot API compliance.
@@ -6,7 +11,9 @@ This is a major update — the app is renamed from "LoL Coach Overlay" to **Rift
 
 A new always-on-demand panel shows scouting info for all 10 players in your match, sorted by lane (TOP/JG/MID/BOT/SUP) so matching lanes line up between your team and the enemy team.
 
-**Setup**: open the AI Coaching panel (✦ button) → "Opponent Scan" section → paste a free Riot Developer API key (get one at [developer.riotgames.com](https://developer.riotgames.com)) → Save. A personal Dev key works but expires every 24 hours; apply for a Production key if you want it to stay active without re-pasting daily.
+**Setup**: open the AI Coaching panel (✦ button) → "Opponent Scan" section → paste a free Riot Developer API key (get one at [developer.riotgames.com](https://developer.riotgames.com)) → Save.
+
+> ⚠ **Heads up — this is a rough edge for now.** Riot's personal Dev keys expire every 24 hours, so until we get approved for a Production key, you'll need to re-copy a fresh key from Riot's dashboard and re-save it in the app roughly once a day for Match Scout to keep working. We've applied for a Production key (no expiry, no daily hassle) and this section will be updated once it's approved. Consider Match Scout an early/rough feature until then.
 
 **Using it**: press **F10** during a match (you'll need to alt-tab to the app window first — League's anti-cheat blocks background hotkeys, same limitation the existing Ctrl+Shift+C control panel has)*. Each player's card shows:
 - **Rank** — tier, division, season win rate and total ranked games (from the League Client)

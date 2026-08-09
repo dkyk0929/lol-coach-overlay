@@ -8,7 +8,7 @@ A new always-on-demand panel shows scouting info for all 10 players in your matc
 
 **Setup**: open the AI Coaching panel (✦ button) → "Opponent Scan" section → paste a free Riot Developer API key (get one at [developer.riotgames.com](https://developer.riotgames.com)) → Save. A personal Dev key works but expires every 24 hours; apply for a Production key if you want it to stay active without re-pasting daily.
 
-**Using it**: press **F10** during a match (you'll need to alt-tab to the app window first — League's anti-cheat blocks background hotkeys, same limitation the existing Ctrl+Shift+C control panel has). Each player's card shows:
+**Using it**: press **F10** during a match (you'll need to alt-tab to the app window first — League's anti-cheat blocks background hotkeys, same limitation the existing Ctrl+Shift+C control panel has)*. Each player's card shows:
 - **Rank** — tier, division, season win rate and total ranked games (from the League Client)
 - **Recent form** — win/loss ring for their last 8 games, hover it for a per-game breakdown (champion, K/D/A, CS/min)
 - **On this champion** — a second ring showing their win rate specifically on the champion they locked in this game
@@ -28,6 +28,9 @@ Went through Riot's developer policy (which explicitly prohibits real-time overl
 ### Rebrand
 
 - App renamed to **Rift SensAI** throughout the UI, window titles, and tray menu.
+
+---
+\* We're in the process of getting Rift SensAI whitelisted with [Overwolf](https://www.overwolf.com/) — their overlay SDK is allowlisted by League's anti-cheat, which would let hotkeys and the overlay work while League has focus, no alt-tabbing required. This is a larger migration in progress, not yet shipped.
 
 ## LoL Coach Overlay v1.9.8 - Disable Tracking on Unsupported Game Modes (League Classic)
 

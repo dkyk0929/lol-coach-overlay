@@ -2,8 +2,100 @@
 const $ = (id) => document.getElementById(id)
 const waitingScreen = $('waiting-screen')
 const gameScreen    = $('game-screen')
-const focusText     = $('focus-text')
 const appEl         = $('app')
+
+const MODE = new URLSearchParams(location.search).get('mode') === 'dashboard' ? 'dashboard' : 'bar'
+const dashboardScreen = $('dashboard-screen')
+
+if (MODE === 'dashboard') {
+  appEl.classList.add('hidden')
+  dashboardScreen.classList.remove('hidden')
+}
+
+function dualEl(id) {
+  return MODE === 'dashboard' ? document.getElementById('dash-' + id) : document.getElementById(id)
+}
+
+// ── Dashboard feed ────────────────────────────────────────────────────────────
+function renderFeedEntry({ msg, pri, time }) {
+  const list = $('dash-feed-list')
+  if (!list) return
+  const row = document.createElement('div')
+  row.className = `dash-feed-row pri-${pri}`
+  const timeEl = document.createElement('span')
+  timeEl.className = 'dash-feed-time'
+  timeEl.textContent = fmtTime(time)
+  const msgEl = document.createElement('span')
+  msgEl.textContent = msg
+  row.appendChild(timeEl)
+  row.appendChild(msgEl)
+  list.insertBefore(row, list.firstChild)   // newest at top
+}
+
+function renderFeedBacklog() {
+  const list = $('dash-feed-list')
+  if (!list) return
+  list.innerHTML = ''
+  // alertLogFull is oldest-first; rendering oldest-to-newest through
+  // renderFeedEntry (which always inserts at the top) ends with newest on top.
+  for (const entry of state.alertLogFull) renderFeedEntry(entry)
+}
+
+// ── Dashboard widget declutter ───────────────────────────────────────────────
+async function initDashboardWidgets() {
+  if (MODE !== 'dashboard') return
+  const widgets = await window.lolCoach.getDashboardWidgets()
+  applyDashboardWidgetVisibility(widgets)
+  $('dash-widget-feed').checked       = widgets.feed
+  $('dash-widget-objectives').checked = widgets.objectives
+  $('dash-widget-csgold').checked     = widgets.csGold
+
+  const save = () => {
+    const next = {
+      feed:       $('dash-widget-feed').checked,
+      objectives: $('dash-widget-objectives').checked,
+      csGold:     $('dash-widget-csgold').checked,
+    }
+    applyDashboardWidgetVisibility(next)
+    window.lolCoach.saveDashboardWidgets(next)
+  }
+  $('dash-widget-feed').addEventListener('change', save)
+  $('dash-widget-objectives').addEventListener('change', save)
+  $('dash-widget-csgold').addEventListener('change', save)
+}
+
+function applyDashboardWidgetVisibility({ feed, objectives, csGold }) {
+  $('dash-feed-panel').classList.toggle('hidden', !feed)
+  $('dash-obj-panel').classList.toggle('hidden', !objectives)
+  $('dash-cs-panel').classList.toggle('hidden', !csGold)
+  // The stats row itself would otherwise sit there as an empty 90px strip
+  // if both panels inside it are off.
+  document.querySelector('.dash-stats-row').classList.toggle('hidden', !objectives && !csGold)
+}
+
+initDashboardWidgets()
+
+if (MODE === 'dashboard') {
+  $('dash-btn-tts').addEventListener('click', () => setTTSMuted(!ttsMuted))
+  $('dash-btn-back').addEventListener('click', () => window.lolCoach.switchToBar())
+  $('dash-btn-log').addEventListener('click', () => window.lolCoach.toggleBattleLog())
+  $('dash-btn-ai').addEventListener('click', () => window.lolCoach.toggleAiSetup())
+  $('dash-btn-info').addEventListener('click', () => window.lolCoach.toggleInfoWindow())
+}
+
+function applyAramPresentation() {
+  dualEl('jg-last').textContent  = 'ARAM'
+  dualEl('jg-threat').textContent = ''
+  dualEl('drake-icon').textContent = '⚔'
+  dualEl('ally-drakes').textContent = ''
+  dualEl('enemy-drakes').textContent = ''
+  dualEl('drake-sep').textContent = ''
+  dualEl('obj-countdown').textContent = ''
+  if (MODE === 'dashboard') {
+    $('dash-sep-1').textContent = ''
+    $('dash-sep-2').textContent = ''
+  }
+}
 
 // ── Opacity system ───────────────────────────────────────────────────────────
 let opacityValue = parseInt(localStorage.getItem('opacityValue') ?? '85')
@@ -240,6 +332,11 @@ function setTTSMuted(muted, notify = true) {
     btn.textContent = '🔊'
     btn.classList.remove('muted')
   }
+  if (MODE === 'dashboard') {
+    const dashBtn = $('dash-btn-tts')
+    dashBtn.textContent = muted ? '🔇 VOICE OFF' : '🔊 VOICE ON'
+    dashBtn.classList.toggle('muted', muted)
+  }
   if (notify) window.lolCoach.notifyTtsMuted(muted)
 }
 
@@ -314,6 +411,85 @@ function freshState() {
   }
 }
 
+// ── Mode-switch state handoff ────────────────────────────────────────────────
+// Fields that can't be cheaply rebuilt from the next live-client-data tick —
+// see the design doc's "State handoff" section for why this list exists.
+// Anything added to freshState() later that needs to survive a mode switch
+// must be added here too — it will not happen automatically.
+//
+// This includes every per-event dedup tracker, not just display values: if
+// `seenEventIds`/`respawnAlerted`/`shownTimeline`/`roamAlerts` don't survive,
+// the very next game-data tick after a switch replays every event of the
+// game from scratch (checkEvents/checkTimeline/checkRespawnAlerts all guard
+// on these) — double-counting drakes, re-firing "DRAGON BACK UP" as a fresh
+// urgent alert, and re-triggering "you just died" AI coaching, all instantly.
+// Electron's IPC uses the structured clone algorithm, which (unlike JSON)
+// natively supports Set and Map, so these can be captured as-is.
+function captureHandoffState() {
+  return {
+    running:           state.running,
+    activeName:        state.activeName,
+    alertLog:          state.alertLog,
+    alertLogFull:      state.alertLogFull,
+    csDeltaHistory:    state.csDeltaHistory,
+    jungler:           state.jungler,
+    kills:             state.kills,
+    deaths:            state.deaths,
+    assists:           state.assists,
+    targetCS:          state.targetCS,
+    matchupBrief:      state.matchupBrief,
+    matchupBriefFired: state.matchupBriefFired,
+    gamePlanFired:     state.gamePlanFired,
+    allyTeam:          state.allyTeam,
+    enemyTeam:         state.enemyTeam,
+    isARAM:            state.isARAM,
+    myChampion:        state.myChampion,
+    myPosition:        state.myPosition,
+    gameResult:        state.gameResult,
+    allyDrakes:        state.allyDrakes,
+    enemyDrakes:       state.enemyDrakes,
+    nextDragonSpawn:   state.nextDragonSpawn,
+    nextBaronSpawn:    state.nextBaronSpawn,
+    aiEnabled:         state.aiEnabled,
+    seenEventIds:      state.seenEventIds,
+    respawnAlerted:    state.respawnAlerted,
+    shownTimeline:     state.shownTimeline,
+    roamAlerts:        state.roamAlerts,
+    enemyLastSeen:     state.enemyLastSeen,
+    missingAlertAt:    state.missingAlertAt,
+    objJgAlertedAt:    state.objJgAlertedAt,
+    recallAlertedAt:   state.recallAlertedAt,
+    gameTime:          state.gameTime,
+    cs:                state.cs,
+    currentGold:       state.currentGold,
+  }
+}
+
+function applyHandoffState(data) {
+  if (!data) return
+  Object.assign(state, data)
+  // Object.assign restores `state.running` directly, bypassing the
+  // waiting→game screen swap that normally only happens inside the
+  // `if (!state.running)` branch of onGameData (renderer.js:388-397) — do
+  // it here instead, or the new window would sit on its waiting screen
+  // forever while state quietly keeps updating underneath it.
+  if (state.running) {
+    waitingScreen.classList.add('hidden')
+    gameScreen.classList.remove('hidden')
+    appEl.classList.add('dimmed')
+  }
+  if (state.isARAM) applyAramPresentation()
+}
+
+window.lolCoach.onCaptureState(() => {
+  window.lolCoach.sendCapturedState(captureHandoffState())
+})
+
+window.lolCoach.onRestoreState((data) => {
+  applyHandoffState(data)
+  if (MODE === 'dashboard') renderFeedBacklog()
+})
+
 
 // ── Hover to un-dim ──────────────────────────────────────────────────────────
 // Window is always interactive — no pass-through toggling needed.
@@ -326,6 +502,14 @@ $('btn-log').addEventListener('click',     () => window.lolCoach.toggleBattleLog
 $('btn-coffee').addEventListener('click',  () => window.lolCoach.openUrl('https://buymeacoffee.com/bdannykimt'))
 $('btn-opacity').addEventListener('click', () => toggleOpacityPanel())
 $('btn-info').addEventListener('click',    () => window.lolCoach.toggleInfoWindow())
+$('btn-dashboard-mode').addEventListener('click', () => window.lolCoach.switchToDashboard())
+
+async function initDashboardModeButton() {
+  if (MODE !== 'bar') return
+  const { hasSecondDisplay } = await window.lolCoach.getDisplayInfo()
+  if (hasSecondDisplay) $('btn-dashboard-mode').classList.remove('hidden')
+}
+initDashboardModeButton()
 
 // Opacity slider
 $('opacity-slider').addEventListener('input', (e) => applyOpacity(parseInt(e.target.value)))
@@ -359,6 +543,16 @@ function setAiActive(active) {
   } else {
     btn.classList.remove('active')
     btn.title = 'Set up AI Coaching'
+  }
+  if (MODE === 'dashboard') {
+    const dashBtn = $('dash-btn-ai')
+    if (active) {
+      dashBtn.classList.add('active')
+      dashBtn.title = 'AI Coaching active — click to manage'
+    } else {
+      dashBtn.classList.remove('active')
+      dashBtn.title = 'Set up AI Coaching'
+    }
   }
 }
 
@@ -394,6 +588,7 @@ window.lolCoach.onGameData((data) => {
     waitingScreen.classList.add('hidden')
     gameScreen.classList.remove('hidden')
     appEl.classList.add('dimmed')
+    if (MODE === 'dashboard') renderFeedBacklog()   // clears the DOM list — alertLogFull is empty again
   }
 
   const isAramDetected = (
@@ -406,13 +601,7 @@ window.lolCoach.onGameData((data) => {
 
   if (!state.isARAM && isAramDetected) {
     state.isARAM = true
-    $('jg-last').textContent  = 'ARAM'
-    $('jg-threat').textContent = ''
-    $('drake-icon').textContent = '⚔'
-    $('ally-drakes').textContent = ''
-    $('enemy-drakes').textContent = ''
-    document.querySelector('.drake-sep').textContent = ''
-    $('obj-countdown').textContent = ''
+    applyAramPresentation()
   }
 
   // Anything that isn't ARAM or modern Summoner's Rift (e.g. League Classic,
@@ -427,6 +616,9 @@ window.lolCoach.onGameData((data) => {
     waitingScreen.classList.remove('hidden')
     const sub = document.querySelector('.waiting-sub')
     if (sub) sub.textContent = `Unsupported mode (${gameData.gameMode}) — coaching disabled`
+    const focusEl = dualEl('focus-text')
+    focusEl.textContent = `Unsupported mode (${gameData.gameMode}) — coaching disabled`
+    focusEl.style.color = '#5A6A7A'
   }
   if (state.unsupportedMode) return
 
@@ -510,8 +702,9 @@ window.lolCoach.onGameData((data) => {
   // Respawn timer overrides coaching text while dead
   const respawn = me?.respawnTimer ?? 0
   if (respawn > 0) {
-    focusText.textContent = `💀 Respawn in ${Math.ceil(respawn)}s`
-    focusText.style.color = '#5A6A7A'
+    const focusEl = dualEl('focus-text')
+    focusEl.textContent = `💀 Respawn in ${Math.ceil(respawn)}s`
+    focusEl.style.color = '#5A6A7A'
   }
 
   // AI coaching
@@ -559,8 +752,9 @@ function showPostGameRecap() {
   const modeTag   = state.isARAM ? ' · ARAM' : ` | Drakes: ${state.allyDrakes} vs ${state.enemyDrakes}`
   const recap     = `GG${resultTag} — KDA: ${kda} | CS/min: ${cspm}${modeTag} | ${duration}`
 
-  focusText.textContent = recap
-  focusText.style.color = state.gameResult === 'Win' ? '#1FD65F' : state.gameResult === 'Lose' ? '#FF3B3B' : '#C084FC'
+  const focusEl = dualEl('focus-text')
+  focusEl.textContent = recap
+  focusEl.style.color = state.gameResult === 'Win' ? '#1FD65F' : state.gameResult === 'Lose' ? '#FF3B3B' : '#C084FC'
   appEl.classList.remove('dimmed')
   backBtn.classList.remove('hidden')  // show ← back button
 
@@ -598,7 +792,7 @@ function showPostGameRecap() {
 
 // ── CS display ───────────────────────────────────────────────────────────────
 function updateCS(gameTime, cs, me) {
-  const el  = $('cs-delta')
+  const el  = dualEl('cs-delta')
   const pos = state.myPosition
 
   if (pos === 'UTILITY') {
@@ -607,7 +801,7 @@ function updateCS(gameTime, cs, me) {
     const expectedWards = (gameTime / 60) * 1.5
     el.textContent = `👁 ${wards}`
     el.style.color = wards >= expectedWards ? '#1FD65F' : '#C89B3C'
-    $('wave-trend').textContent = ''
+    dualEl('wave-trend').textContent = ''
     return
   }
 
@@ -619,7 +813,7 @@ function updateCS(gameTime, cs, me) {
     } else {
       el.textContent = '—'; el.style.color = ''
     }
-    $('wave-trend').textContent = ''
+    dualEl('wave-trend').textContent = ''
     return
   }
 
@@ -649,7 +843,7 @@ function updateCS(gameTime, cs, me) {
 }
 
 function updateWaveTrend(current) {
-  const el   = $('wave-trend')
+  const el   = dualEl('wave-trend')
   const hist = state.csDeltaHistory
   if (!el || hist.length < 5) { if (el) el.textContent = ''; return }
   const prev  = hist[Math.max(0, hist.length - 5)].d
@@ -665,7 +859,7 @@ function estimateGoldSpent(player) {
 }
 
 function updateGoldDiff(me, allPlayers) {
-  const el = $('gold-diff')
+  const el = dualEl('gold-diff')
   if (!me || state.gameTime < 90) { el.textContent = ''; return }
 
   const myTotal      = state.currentGold + estimateGoldSpent(me)
@@ -682,9 +876,9 @@ function fmtg(n) { return n >= 1000 ? `${(n/1000).toFixed(1)}k` : String(Math.ro
 
 // ── Drake tracker ─────────────────────────────────────────────────────────────
 function updateDrakeDisplay() {
-  $('ally-drakes').textContent  = state.allyDrakes
-  $('enemy-drakes').textContent = state.enemyDrakes
-  const zone = $('drake-zone')
+  dualEl('ally-drakes').textContent  = state.allyDrakes
+  dualEl('enemy-drakes').textContent = state.enemyDrakes
+  const zone = MODE === 'dashboard' ? $('dash-drake-group') : $('drake-zone')
   zone.classList.toggle('soul-warning', state.enemyDrakes >= 3)
 }
 
@@ -708,17 +902,24 @@ function setFocus(msg, urgent, color) {
     return
   }
   pendingFocusHint = null
-  focusText.textContent = msg
+  const el = dualEl('focus-text')
+  el.textContent = msg
   if (color) {
-    focusText.style.color = color
+    el.style.color = color
   } else {
-    focusText.style.color = urgent ? '#FF6B35' : '#C89B3C'
+    el.style.color = urgent ? '#FF6B35' : '#C89B3C'
   }
   state.currentFocus = msg
 }
 
 // ── Jungler display ──────────────────────────────────────────────────────────
 function setJunglerThreat(level) {
+  if (MODE === 'dashboard') {
+    const dot = dualEl('jg-threat')
+    dot.classList.remove('jg-dead', 'jg-warning', 'jg-danger')
+    if (level) dot.classList.add(`jg-${level}`)
+    return
+  }
   const el = $('jg-zone')
   el.classList.remove('jg-dead', 'jg-warning', 'jg-danger')
   if (level) el.classList.add(`jg-${level}`)
@@ -727,7 +928,7 @@ function setJunglerThreat(level) {
 function renderJungler() {
   const j = state.jungler
   if (!j.name) return
-  const lastEl = $('jg-last')
+  const lastEl = dualEl('jg-last')
   if (j.isDead) {
     lastEl.textContent = `${j.champion} 💀 dead`; lastEl.style.color = '#1FD65F'
   } else if (j.lastSeenSide === 'objective') {
@@ -855,12 +1056,10 @@ function checkEvents(events, activeName, allPlayers, myTeam) {
         state.enemyDrakes++
         if (!stale) {
           if (state.enemyDrakes === 3) {
-            window.lolCoach.showCenterNotif('🐉 ENEMY SOUL POINT — next dragon = Soul. Drop everything and contest!', 'urgent')
-            playUrgentSound()
+            pushAlert('🐉 ENEMY SOUL POINT — next dragon = Soul. Drop everything and contest!', 'objective', 'urgent')
             speak('Enemy soul point! Drop everything and contest next dragon!', true)
           } else if (state.enemyDrakes === 4) {
-            window.lolCoach.showCenterNotif('🐉 Enemy has Dragon Soul — avoid extended teamfights!', 'urgent')
-            playUrgentSound()
+            pushAlert('🐉 Enemy has Dragon Soul — avoid extended teamfights!', 'objective', 'urgent')
             speak('Enemy has Dragon Soul. Avoid extended teamfights!', true)
           }
         }
@@ -1048,9 +1247,7 @@ function updateJungler(gameTime, allPlayers, myTeam) {
     if (unseen > 90 && gameTime > 300) {
       setJunglerThreat('danger')
       if (sinceWarned > 150) {
-        const msg = `⚠ ${state.jungler.champion} missing`
-        window.lolCoach.showCenterNotif(msg, 'urgent')
-        playUrgentSound()
+        pushAlert(`⚠ ${state.jungler.champion} missing`, 'gank', 'urgent')
         speak(`${state.jungler.champion} missing`, true)
         state.jungler.unseenAlertAt = gameTime
       }
@@ -1090,13 +1287,32 @@ function checkObjectiveJgProximity(gameTime, unseen) {
 
 // ── Alert system ─────────────────────────────────────────────────────────────
 function pushAlert(msg, cat, pri) {
-  setFocus(msg, pri === 'urgent')
-  state.alertLog.unshift({ msg, pri, time: state.gameTime })
-  if (state.alertLog.length > 4) state.alertLog.pop()
+  const isAiTip = pri === 'ai' || pri === 'gameplan'
+  // AI tips already set focusText directly (with their own color) right
+  // before calling pushAlert (see requestGamePlan/requestAICoaching) —
+  // routing them through setFocus too would trigger its 15s re-lock logic
+  // and re-render them later at the wrong color, clobbering whatever
+  // legitimate hint is showing by then.
+  if (!isAiTip) setFocus(msg, pri === 'urgent')
+  // Keep the AI's own past tips out of its own "recent alerts" context —
+  // alertLog feeds straight back into the next requestAICoaching() prompt.
+  if (!isAiTip) {
+    state.alertLog.unshift({ msg, pri, time: state.gameTime })
+    if (state.alertLog.length > 4) state.alertLog.pop()
+  }
   // Keep full log for post-game analysis
   state.alertLogFull.push({ msg, cat, pri, time: state.gameTime })
+
+  if (MODE === 'dashboard') {
+    renderFeedEntry({ msg, cat, pri, time: state.gameTime })
+    if (pri === 'urgent')  playUrgentSound()
+    if (pri === 'warning') playWarningSound()
+    return
+  }
+
   if      (pri === 'urgent')  { window.lolCoach.showCenterNotif(msg, 'urgent'); playUrgentSound() }
   else if (pri === 'warning') { playWarningSound() }
+  else if (isAiTip)           { window.lolCoach.showCenterNotif(msg, pri) }
 }
 
 // ── Feature 2: Game plan at match start ──────────────────────────────────────
@@ -1129,12 +1345,13 @@ async function requestGamePlan() {
           .trim()
       }
       state.targetCS = response.targetCS || 7.0
-      focusText.textContent = `✦ ${advice}`
-      focusText.style.color = '#C084FC'
+      const focusEl = dualEl('focus-text')
+      focusEl.textContent = `✦ ${advice}`
+      focusEl.style.color = '#C084FC'
       state.currentFocus = `✦ ${advice}`
       state.aiMessageAt  = state.gameTime  // lock bar for 15s
       state.gamePlanShowing = true
-      window.lolCoach.showCenterNotif(`✦ ${advice}`, 'gameplan')
+      pushAlert(`✦ ${advice}`, 'ai', 'gameplan')
       speak(advice, false)
       state.lastAICallAt = -999
     }
@@ -1278,10 +1495,11 @@ async function requestAICoaching(trigger) {
       if (!isCoachStatementRelevant(advice, apiElapsedTime)) {
         return
       }
-      focusText.textContent = `✦ ${advice}`
-      focusText.style.color = '#7ee8f5'
+      const focusEl = dualEl('focus-text')
+      focusEl.textContent = `✦ ${advice}`
+      focusEl.style.color = '#7ee8f5'
       state.aiMessageAt = state.gameTime  // lock bar for 15s
-      window.lolCoach.showCenterNotif(`✦ ${advice}`, 'ai')
+      pushAlert(`✦ ${advice}`, 'ai', 'ai')
       speak(advice, false)
     }
   } catch {}
@@ -1449,7 +1667,7 @@ function checkRoamWindows(me, opponent, gameTime) {
 // ── Situational context badge ─────────────────────────────────────────────────
 // Shows raw facts (HP%, JG status) — player decides what to do with them
 function checkAllinWindow(level, me, allPlayers, gameTime) {
-  const badge = $('allin-badge')
+  const badge = dualEl('allin-badge')
   if (!me || !badge) return
   if (level < 6) { badge.classList.add('hidden'); return }
   // Jungle has no fixed lane opponent — "my position" would match the enemy
@@ -1476,7 +1694,7 @@ function checkAllinWindow(level, me, allPlayers, gameTime) {
 
 // ── Objective countdown ───────────────────────────────────────────────────────
 function updateObjectiveCountdown(gameTime) {
-  const el = $('obj-countdown')
+  const el = dualEl('obj-countdown')
   if (!el) return
   const dragonLeft = state.nextDragonSpawn - gameTime
   const baronLeft  = state.nextBaronSpawn  - gameTime

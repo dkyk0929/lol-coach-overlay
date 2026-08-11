@@ -30,6 +30,7 @@
     <div id="util-grid">
       <button id="btn-tts"     title="Mute / Unmute voice">🔊</button>
       <button id="btn-opacity" title="Opacity control">85%</button>
+      <button id="btn-dashboard-mode" class="hidden" title="Switch to Dashboard Mode">🖥</button>
     </div>
   </div>
 
@@ -75,7 +76,7 @@
       <div id="drake-zone">
         <span id="drake-icon">🐉</span>
         <span id="ally-drakes">0</span>
-        <span class="drake-sep">·</span>
+        <span id="drake-sep" class="drake-sep">·</span>
         <span id="enemy-drakes">0</span>
         <span id="obj-countdown"></span>
       </div>
@@ -97,6 +98,49 @@
   </div>
 
 </div>
+
+  <div id="dashboard-screen" class="hidden">
+    <div id="dashboard-active">
+      <div class="dash-stats-row">
+        <div id="dash-obj-panel" class="dash-panel">
+          <span id="dash-jg-threat">●</span>
+          <span id="dash-jg-last">detecting...</span>
+          <span id="dash-sep-1" class="dash-sep">|</span>
+          <span id="dash-drake-group">
+            <span id="dash-drake-icon">🐉</span>
+            <span id="dash-ally-drakes">0</span>
+            <span id="dash-drake-sep" class="dash-sep">·</span>
+            <span id="dash-enemy-drakes">0</span>
+          </span>
+          <span id="dash-sep-2" class="dash-sep">|</span>
+          <span id="dash-obj-countdown"></span>
+        </div>
+        <div id="dash-cs-panel" class="dash-panel">
+          <span id="dash-cs-delta">—</span>
+          <span id="dash-wave-trend"></span>
+          <span class="dash-sep">|</span>
+          <span id="dash-gold-diff"></span>
+        </div>
+      </div>
+      <div id="dash-focus-panel" class="dash-panel">
+        <div id="dash-focus-text">Warming up...</div>
+      </div>
+      <div id="dash-allin-badge" class="dash-panel hidden"></div>
+      <div id="dash-feed-panel" class="dash-panel">
+        <div id="dash-feed-list"></div>
+      </div>
+    </div>
+    <div id="dashboard-controls">
+      <label><input type="checkbox" id="dash-widget-feed" checked> Feed</label>
+      <label><input type="checkbox" id="dash-widget-objectives" checked> Objectives</label>
+      <label><input type="checkbox" id="dash-widget-csgold" checked> CS/Gold</label>
+      <button id="dash-btn-log" title="Battle Log">📋 LOG</button>
+      <button id="dash-btn-ai" title="Set up AI Coaching">✦ AI</button>
+      <button id="dash-btn-info" title="Info & Links">ℹ️ INFO</button>
+      <button id="dash-btn-tts">🔊 VOICE ON</button>
+      <button id="dash-btn-back">← Back to overlay</button>
+    </div>
+  </div>
 
 <script src="data/timeline.js"></script>
 <script src="data/eventHandlers.js"></script>

@@ -65,7 +65,7 @@ body {
 #right-panel {
   position: absolute;
   top: 0; right: 0; bottom: 0;
-  width: 76px;
+  width: 100px;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -112,7 +112,7 @@ body {
 #left-actions {
   position: absolute;
   top: 0; bottom: 0;
-  right: 76px;
+  right: 100px;
   width: 52px;
   display: grid;
   grid-template-columns: repeat(2, 1fr);
@@ -189,7 +189,7 @@ body {
 #opacity-panel {
   position: absolute;
   top: 8px;
-  right: 132px;
+  right: 156px;
   background: rgba(10, 15, 26, 0.95);
   border: 1px solid var(--border-color);
   border-radius: 6px;
@@ -249,7 +249,7 @@ body {
 #waiting-screen {
   flex: 1; display: flex; align-items: center;
   gap: 12px; padding: 0 14px 0 16px;
-  padding-right: 136px;
+  padding-right: 160px;
   min-height: 0;
 }
 
@@ -270,7 +270,7 @@ body {
 #game-bar {
   height: 72px; flex-shrink: 0;
   display: flex; align-items: stretch;
-  padding-right: 132px;
+  padding-right: 156px;
 }
 
 .bar-divider {
@@ -390,3 +390,176 @@ body {
   font-size: 10px; padding: 3px 7px; cursor: pointer; transition: all 0.15s;
 }
 .s-toggle.muted { background: rgba(255, 77, 109, 0.1); border-color: rgba(255, 77, 109, 0.5); color: var(--red); text-decoration: line-through; }
+
+/* ── Dashboard mode: base layout ── */
+#dashboard-screen {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  padding: 16px;
+  gap: 12px;
+  background: var(--bg-dark);
+}
+#dashboard-active { flex: 1; display: flex; flex-direction: column; gap: 12px; min-height: 0; }
+
+/* Same glass-panel treatment as the bar's #app (same --panel-bg translucency
+   and backdrop-filter, same gold edge glow), scaled down per-panel since the
+   dashboard has several panels instead of one strip. The dashboard's own
+   background is solid (#dashboard-screen, above), so this blends against a
+   single flat color instead of the bar's game footage — same recipe,
+   consistent result. */
+.dash-panel {
+  background: var(--panel-bg);
+  border: 1px solid var(--border-color);
+  border-top: 2px solid var(--gold);
+  border-radius: 8px;
+  box-shadow: 0 -1px 10px var(--gold-glow), 0 6px 20px rgba(0,0,0,0.45);
+  backdrop-filter: blur(12px) saturate(160%);
+}
+
+/* ── Dashboard mode: stat panels ── */
+.dash-stats-row { display: flex; gap: 12px; height: 90px; flex: 0 0 auto; }
+.dash-stats-row .dash-panel {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 0 24px;
+  font-family: var(--font-mono);
+  font-size: 15px;
+}
+
+.dash-sep { color: var(--text-muted); opacity: 0.5; }
+
+#dash-jg-threat { font-size: 16px; color: var(--text-muted); transition: color 0.3s; }
+#dash-jg-threat.jg-dead    { color: var(--green); }
+#dash-jg-threat.jg-warning { color: var(--gold); }
+#dash-jg-threat.jg-danger  { color: var(--red); animation: pulse 1.5s ease-in-out infinite; }
+#dash-jg-last { color: var(--text-primary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+#dash-drake-group { display: inline-flex; align-items: center; gap: 4px; }
+#dash-drake-icon { opacity: 0.6; }
+#dash-ally-drakes, #dash-enemy-drakes { font-weight: 700; font-size: 18px; color: var(--gold); }
+#dash-drake-group.soul-warning #dash-enemy-drakes { color: var(--red); text-shadow: 0 0 6px rgba(255, 77, 109, 0.7); }
+#dash-drake-group.soul-warning #dash-drake-icon   { opacity: 1; }
+#dash-obj-countdown { color: var(--text-muted); }
+#dash-obj-countdown.urgent { color: var(--gold); text-shadow: 0 0 6px var(--gold-glow); }
+
+#dash-cs-delta { font-size: 22px; font-weight: 700; color: var(--text-primary); }
+#dash-wave-trend.wave-up   { color: var(--green); }
+#dash-wave-trend.wave-down { color: var(--red); }
+#dash-gold-diff { color: var(--text-muted); }
+
+/* ── Dashboard mode: current focus ── */
+#dash-focus-panel {
+  flex: 0 0 auto;
+  height: 68px;
+  display: flex;
+  align-items: center;
+  padding: 0 24px;
+  overflow: hidden;
+}
+#dash-focus-text {
+  flex: 1;
+  min-width: 0;
+  font-family: var(--font-mono);
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--gold);
+  line-height: 1.4;
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+}
+
+/* ── Dashboard mode: all-in badge ── */
+/* Background/border/glow come from the shared .dash-panel class (index.html) */
+#dash-allin-badge {
+  flex: 0 0 auto;
+  padding: 8px 24px;
+  font-family: var(--font-mono);
+  font-size: 13px;
+  color: var(--gold);
+}
+
+/* ── Dashboard mode: feed ── */
+#dash-feed-panel { flex: 1; padding: 12px 20px; overflow-y: auto; min-height: 0; }
+
+.dash-feed-row {
+  display: flex;
+  gap: 12px;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--border-color);
+  font-family: var(--font-mono);
+  font-size: 14px;
+}
+.dash-feed-row .dash-feed-time { color: var(--text-muted); flex-shrink: 0; width: 48px; }
+
+.dash-feed-row.pri-urgent            { color: var(--red); }
+.dash-feed-row.pri-warning           { color: var(--gold); }
+.dash-feed-row.pri-ai, .dash-feed-row.pri-gameplan { color: var(--teal); }
+.dash-feed-row.pri-normal            { color: var(--text-primary); }
+
+/* Newest entry is first (renderFeedEntry inserts at the top) — fade older
+   rows toward a floor opacity (never fully transparent) so the eye is
+   drawn to the most recent one. Linear step down to the floor over 10
+   rows; rows past the 10th just hold at it. */
+.dash-feed-row               { opacity: 0.4; }
+.dash-feed-row:nth-child(1)  { opacity: 1; }
+.dash-feed-row:nth-child(2)  { opacity: 0.93; }
+.dash-feed-row:nth-child(3)  { opacity: 0.87; }
+.dash-feed-row:nth-child(4)  { opacity: 0.8; }
+.dash-feed-row:nth-child(5)  { opacity: 0.73; }
+.dash-feed-row:nth-child(6)  { opacity: 0.67; }
+.dash-feed-row:nth-child(7)  { opacity: 0.6; }
+.dash-feed-row:nth-child(8)  { opacity: 0.53; }
+.dash-feed-row:nth-child(9)  { opacity: 0.47; }
+.dash-feed-row:nth-child(10) { opacity: 0.4; }
+
+/* ── Dashboard mode: controls ── */
+#dashboard-controls {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 10px 16px;
+  font-family: var(--font-sans);
+  font-size: 12px;
+  color: var(--text-muted);
+  border-top: 1px solid var(--border-color);
+}
+#dashboard-controls label { display: flex; align-items: center; gap: 6px; cursor: pointer; }
+
+/* Native checkbox rendering, just tinted gold — hand-drawing the check
+   mark (previous attempts here) kept coming out misaligned. accent-color
+   lets the browser render and center it correctly and still matches the
+   app's palette. */
+#dashboard-controls input[type="checkbox"] {
+  accent-color: var(--gold);
+  cursor: pointer;
+}
+
+#dash-btn-log, #dash-btn-ai, #dash-btn-info, #dash-btn-tts, #dash-btn-back {
+  background: none;
+  border: 1px solid var(--border-color);
+  color: var(--text-muted);
+  border-radius: 4px;
+  padding: 6px 14px;
+  cursor: pointer;
+  font-family: var(--font-sans);
+  font-size: 12px;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+#dash-btn-log:hover, #dash-btn-ai:hover, #dash-btn-info:hover, #dash-btn-tts:hover, #dash-btn-back:hover {
+  border-color: var(--border-hover);
+  color: var(--gold);
+  transform: translateY(-1px);
+  box-shadow: 0 2px 8px var(--gold-glow);
+}
+#dash-btn-log:active, #dash-btn-ai:active, #dash-btn-info:active, #dash-btn-tts:active, #dash-btn-back:active {
+  transform: translateY(0);
+}
+#dash-btn-ai.active { color: var(--teal); border-color: var(--teal); }
+#dash-btn-tts.muted { color: var(--red); border-color: rgba(255,77,109,0.5); }
+#dash-btn-back { margin-left: auto; }

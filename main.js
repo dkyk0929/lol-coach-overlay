@@ -23,6 +23,9 @@ let aiProvider = 'anthropic'
 let lastAICallTime  = 0
 let riotApiKey = null
 let riotRegion = 'americas'   // continent routing for match-v5: americas | europe | asia | sea
+let currentMode = 'bar'   // 'bar' | 'dashboard'
+let switching   = false   // true while a mode switch is in flight — see Step 3
+let isQuitting  = false   // true once a real app quit is underway — see app.on('before-quit')
 
 // ── Battle log ────────────────────────────────────────────────────────────────
 const battleLogPath = path.join(app.getPath('userData'), 'battle-log.json')
@@ -78,6 +81,10 @@ function toggleControlPanel() {
   if (controlPanelWindow && !controlPanelWindow.isDestroyed()) {
     controlPanelWindow.close()
     controlPanelWindow = null
+    return
+  }
+  if (currentMode === 'dashboard') {
+    if (mainWindow && !mainWindow.isDestroyed()) mainWindow.focus()
     return
   }
   if (!mainWindow || mainWindow.isDestroyed()) return
@@ -1138,6 +1145,9 @@ function sendScoutData() {
 
 ipcMain.on('close-scout', () => { if (gameScoutWindow && !gameScoutWindow.isDestroyed()) gameScoutWindow.close() })
 
+ipcMain.on('switch-to-dashboard', () => switchToDashboardMode())
+ipcMain.on('switch-to-bar',       () => switchToBarMode())
+
 // ── Post-game window ──────────────────────────────────────────────────────────
 let postGameWindow = null
 
@@ -1287,14 +1297,13 @@ function createWindow() {
 
   createNotifWindow()
 
-  mainWindow.on('moved', () => {
-    if (!mainWindow.isDestroyed()) {
-      const [x, y] = mainWindow.getPosition()
+  const win = mainWindow
+  win.on('moved', () => {
+    if (!win.isDestroyed()) {
+      const [x, y] = win.getPosition()
       saveConfig({ barX: x, barY: y })
     }
   })
-
-  startPolling()
 }
 
 function createNotifWindow() {
@@ -1321,6 +1330,128 @@ function createNotifWindow() {
   notifWindow.loadFile(path.join(__dirname, 'src', 'notif.html'))
   notifWindow.setAlwaysOnTop(true, 'screen-saver')
   notifWindow.setIgnoreMouseEvents(true, { forward: true })
+}
+
+// ── Dashboard window ─────────────────────────────────────────────────────────
+function boundsAreOnscreen(bounds) {
+  return screen.getAllDisplays().some(d => {
+    const a = d.workArea
+    const overlapW = Math.min(bounds.x + bounds.width, a.x + a.width) - Math.max(bounds.x, a.x)
+    const overlapH = Math.min(bounds.y + bounds.height, a.y + a.height) - Math.max(bounds.y, a.y)
+    return overlapW > 100 && overlapH > 100   // require a meaningful overlap, not just a sliver
+  })
+}
+
+function createDashboardWindow(display) {
+  const cfg    = loadConfig()
+  const saved  = cfg.dashboardBounds
+  const bounds = (saved && boundsAreOnscreen(saved)) ? saved : display.workArea
+
+  const win = new BrowserWindow({
+    x: bounds.x,
+    y: bounds.y,
+    width: bounds.width,
+    height: bounds.height,
+    frame: true,
+    transparent: false,
+    backgroundColor: '#070b12',
+    alwaysOnTop: false,
+    skipTaskbar: false,
+    resizable: true,
+    title: 'Rift SensAI — Dashboard',
+    webPreferences: {
+      preload: path.join(__dirname, 'preload.js'),
+      contextIsolation: true,
+      nodeIntegration: false,
+    },
+  })
+  mainWindow = win
+
+  win.loadFile(path.join(__dirname, 'src', 'index.html'), { search: 'mode=dashboard' })
+
+  // Closures capture `win` (this specific window instance) rather than the
+  // module-level `mainWindow`, which gets reassigned to a different window
+  // the moment a mode switch starts — using `mainWindow` here would let a
+  // stray 'moved'/'resized' event fired by this window during its own
+  // teardown overwrite dashboardBounds with whatever mainWindow points to
+  // by then (e.g. the bar's position).
+  win.on('moved',   () => { if (!win.isDestroyed()) saveConfig({ dashboardBounds: win.getBounds() }) })
+  win.on('resized', () => { if (!win.isDestroyed()) saveConfig({ dashboardBounds: win.getBounds() }) })
+
+  // The dashboard is the only frame:true window, so its native OS close
+  // button is the one close affordance in the app that isn't the explicit
+  // "Quit Rift SensAI" control — treat it the same way and actually quit.
+  // The dedicated "← Back to overlay" button already covers the
+  // non-destructive "just go back to the bar" case, so this doesn't need to.
+  win.on('close', () => {
+    if (currentMode === 'dashboard' && !isQuitting) app.quit()
+  })
+}
+
+// ── Bar ⟷ Dashboard mode switching ───────────────────────────────────────────
+// IMPORTANT: the new window is always created BEFORE the old one is closed.
+// app.on('window-all-closed') (below) stops the game-data poll loop the
+// instant zero windows are open, even for a moment — closing first and
+// creating second would silently kill polling until the app is restarted.
+function requestHandoff(fromWindow, onCaptured) {
+  if (!fromWindow || fromWindow.isDestroyed()) { onCaptured(null); return }
+  let done = false
+  const cleanup = () => { ipcMain.removeListener('session-state-captured', onCapture); clearTimeout(timer) }
+  const finish = (state) => { if (!done) { done = true; cleanup(); onCaptured(state) } }
+  const onCapture = (_, state) => finish(state)
+  ipcMain.once('session-state-captured', onCapture)
+  fromWindow.webContents.send('capture-session-state')
+  // Fallback in case the page never responds (e.g. still loading) — keeps
+  // the switch from hanging forever; state just won't carry over that time.
+  const timer = setTimeout(() => finish(null), 800)
+}
+
+function switchToDashboardMode() {
+  if (currentMode === 'dashboard' || switching) return
+  const primary = screen.getPrimaryDisplay()
+  const target  = screen.getAllDisplays().find(d => d.id !== primary.id)
+  if (!target) return   // nothing to switch to
+  switching = true
+
+  const oldWindow = mainWindow
+  const oldNotif  = notifWindow
+  // The floating Control Panel has nothing to anchor to once the bar is
+  // gone — close it defensively in case it's open (its own "2ND SCREEN"
+  // button already closes itself before calling this, but this path is
+  // also reachable directly via IPC, e.g. from DevTools during testing).
+  if (controlPanelWindow && !controlPanelWindow.isDestroyed()) { controlPanelWindow.close(); controlPanelWindow = null }
+
+  requestHandoff(oldWindow, (handoff) => {
+    createDashboardWindow(target)
+    const newWindow = mainWindow
+    newWindow.webContents.once('did-finish-load', () => {
+      newWindow.webContents.send('restore-session-state', handoff ?? {})
+      newWindow.webContents.send('set-tts-muted', ttsMuted)
+      currentMode = 'dashboard'
+      switching = false
+      if (oldNotif && !oldNotif.isDestroyed()) oldNotif.close()
+      notifWindow = null
+      if (oldWindow && !oldWindow.isDestroyed()) oldWindow.close()
+    })
+  })
+}
+
+function switchToBarMode() {
+  if (currentMode === 'bar' || switching) return
+  switching = true
+  const oldWindow = mainWindow
+
+  requestHandoff(oldWindow, (handoff) => {
+    createWindow()
+    const newWindow = mainWindow
+    newWindow.webContents.once('did-finish-load', () => {
+      newWindow.webContents.send('restore-session-state', handoff ?? {})
+      newWindow.webContents.send('set-tts-muted', ttsMuted)
+      currentMode = 'bar'
+      switching = false
+      if (oldWindow && !oldWindow.isDestroyed()) oldWindow.close()
+    })
+  })
 }
 
 
@@ -1490,7 +1621,7 @@ function startPolling() {
         }
       }
       showGameScout(data)
-      if (mainWindow && !mainWindow.isDestroyed())
+      if (mainWindow && !mainWindow.isDestroyed() && !switching)
         mainWindow.webContents.send('game-data', data)
     } catch {
       if (gameWasRunning) {
@@ -1503,11 +1634,11 @@ function startPolling() {
           if (cachedGameResult && !evData?.Events?.some(e => e.EventName === 'GameEnd')) {
             evData.Events = [...(evData.Events ?? []), { EventName: 'GameEnd', Result: cachedGameResult }]
           }
-          if (mainWindow && !mainWindow.isDestroyed())
+          if (mainWindow && !mainWindow.isDestroyed() && !switching)
             mainWindow.webContents.send('final-events', evData)
         } catch {
           // API fully down — synthesize the event from cached result if available
-          if (cachedGameResult && mainWindow && !mainWindow.isDestroyed()) {
+          if (cachedGameResult && mainWindow && !mainWindow.isDestroyed() && !switching) {
             mainWindow.webContents.send('final-events', {
               Events: [{ EventName: 'GameEnd', Result: cachedGameResult }]
             })
@@ -1515,7 +1646,7 @@ function startPolling() {
         }
         cachedGameResult = null  // reset for next game
       }
-      if (mainWindow && !mainWindow.isDestroyed())
+      if (mainWindow && !mainWindow.isDestroyed() && !switching)
         mainWindow.webContents.send('game-not-running')
       // Reset so scout data is fresh next game
       gameScoutShown  = false
@@ -1565,6 +1696,11 @@ ipcMain.handle('clear-all-logs', () => {
   if (battleLogWindow && !battleLogWindow.isDestroyed())
     battleLogWindow.webContents.send('log-data', { battleLog: [], history: [] })
 })
+
+function showCenterNotifFromMain(msg, pri) {
+  if (notifWindow && !notifWindow.isDestroyed())
+    notifWindow.webContents.send('notif', { msg, pri })
+}
 
 ipcMain.on('show-center-notif', (event, data) => {
   if (notifWindow && !notifWindow.isDestroyed())
@@ -1641,6 +1777,11 @@ ipcMain.handle('ai-postgame', async (event, prompt) => {
 })
 
 ipcMain.handle('get-version',  () => app.getVersion())
+ipcMain.handle('get-display-info', () => {
+  const primary = screen.getPrimaryDisplay()
+  const hasSecondDisplay = screen.getAllDisplays().some(d => d.id !== primary.id)
+  return { hasSecondDisplay }
+})
 ipcMain.handle('has-api-key',  () => {
   const cfg = loadConfig()
   const provider = cfg.aiProvider || 'anthropic'
@@ -1828,13 +1969,67 @@ ipcMain.handle('load-alert-settings', () => {
 })
 ipcMain.handle('save-alert-settings', (_, mutes) => saveConfig({ alertMutes: mutes }))
 
+// ── Dashboard widgets ─────────────────────────────────────────────────────────
+ipcMain.handle('get-dashboard-widgets', () => {
+  return loadConfig().dashboardWidgets ?? { feed: true, objectives: true, csGold: true }
+})
+ipcMain.handle('save-dashboard-widgets', (_, widgets) => {
+  saveConfig({ dashboardWidgets: widgets })
+  return widgets
+})
+
+// ── Dashboard auto-start ──────────────────────────────────────────────────────
+ipcMain.handle('get-dashboard-autostart', () => !!loadConfig().dashboardAutoStart)
+ipcMain.handle('set-dashboard-autostart', (_, val) => { saveConfig({ dashboardAutoStart: val }); return val })
+
 // ── App lifecycle ─────────────────────────────────────────────────────────────
 app.whenReady().then(() => {
-  createWindow()
+  // The dashboard window is the only frame:true window in the app; every
+  // other window is frameless and never rendered a menu bar anyway. Without
+  // this, Windows shows the default File/Edit/View/Window/Help menu on it.
+  Menu.setApplicationMenu(null)
+
+  const cfg       = loadConfig()
+  const primary   = screen.getPrimaryDisplay()
+  const secondary = screen.getAllDisplays().find(d => d.id !== primary.id)
+
+  // createWindow() calls this internally too (harmless — it's an idempotent
+  // config reload), but createDashboardWindow() does NOT, since it was
+  // written as a thin window-creation function with no AI/Riot-key setup of
+  // its own. Without this hoisted call, auto-starting straight into
+  // dashboard mode would leave anthropicApiKey/geminiApiKey/riotApiKey etc.
+  // (main.js:20-25) at their initial null defaults for the whole session —
+  // every AI coaching call and every Match Scout lookup would silently fail.
+  initAI(cfg)
+
+  if (cfg.dashboardAutoStart && secondary) {
+    createDashboardWindow(secondary)
+    currentMode = 'dashboard'
+  } else {
+    createWindow()
+    currentMode = 'bar'
+    if (secondary && cfg.dashboardAutoStart === undefined && !cfg.dashboardSuggestionShown) {
+      saveConfig({ dashboardSuggestionShown: true })
+      setTimeout(() => {
+        showCenterNotifFromMain(
+          'Second monitor detected — enable the dashboard from the control panel (Ctrl+Shift+C)',
+          'normal'
+        )
+      }, 5000)
+    }
+  }
+
   createTray()
   loadChampionMap().then(loadItemRecipes)   // item recipes reuse ddVersion set by the champ map load
   startLCUPolling()
   checkForUpdate()
+  startPolling()
+
+  screen.on('display-removed', () => {
+    if (currentMode === 'dashboard') switchToBarMode()
+  })
+
+  app.on('before-quit', () => { isQuitting = true })
 
   // globalShortcut uses RegisterHotKey which LoL's DirectInput bypasses.
   // uiohook-napi uses a low-level OS hook (WH_KEYBOARD_LL) that fires first.

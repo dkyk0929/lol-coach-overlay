@@ -7,7 +7,7 @@
 
 **REPLACE**
 - Product name everywhere: "LoL Coach Overlay" → **"Rift SensAI"**
-- AI model names: "Claude 3.5 Sonnet / Haiku" and "Gemini 1.5 Flash" → **Claude Haiku 4.5** and **Gemini 2.5 Flash**
+- AI model names: "Claude 3.5 Sonnet / Haiku" and "Gemini 1.5 Flash" → **Claude Haiku 4.5** and **Gemini 3.1 Flash-Lite**
 - Footer credit line → *"Uses Riot's official Live Client Data API (local, in-game) and Riot's public Developer API (match history, account lookup) for the opponent scan feature. Not endorsed by or affiliated with Riot Games."*
 
 **ADD**

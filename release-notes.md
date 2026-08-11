@@ -1,3 +1,9 @@
+## Rift SensAI v2.0.2 - Fix Gemini API Error for New Users
+
+### Bug Fixes
+- Fixed Gemini AI coaching returning "This model models/gemini-2.5-flash is no longer available to new users" for anyone setting up a Gemini API key for the first time. Google restricted `gemini-2.5-flash` to existing projects only (not a full deprecation, just closed off to new users/projects — that's why it worked for existing setups but broke for new ones). Switched to `gemini-3.1-flash-lite`, confirmed generally available, cheaper than the old model, and confirmed to support the web-search grounding used by the matchup-brief feature.
+- Thanks to jstmrby on GitHub for the report and the live error screenshot that pinned down the actual cause.
+
 ## Rift SensAI v2.0.1 - Match Scout Rough-Edge Notice
 
 ### Notes

@@ -82,6 +82,7 @@ body {
   color: var(--gold);
   letter-spacing: 1.5px;
 }
+.ai-accent { color: var(--teal); }
 .brand-version {
   font-family: var(--font-mono);
   font-size: 11px;

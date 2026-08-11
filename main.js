@@ -611,7 +611,7 @@ function callGemini({ systemText, userText, maxTokens }) {
     
     const req = https.request({
       hostname: 'generativelanguage.googleapis.com',
-      path: `/v1beta/models/gemini-2.5-flash:generateContent?key=${geminiApiKey}`,
+      path: `/v1beta/models/gemini-3.1-flash-lite:generateContent?key=${geminiApiKey}`,
       method: 'POST',
       timeout: 15000,
       headers: {
@@ -671,7 +671,7 @@ function callGeminiWithSearch({ systemText, userText, maxTokens }) {
 
     const req = https.request({
       hostname: 'generativelanguage.googleapis.com',
-      path: `/v1beta/models/gemini-2.5-flash:generateContent?key=${geminiApiKey}`,
+      path: `/v1beta/models/gemini-3.1-flash-lite:generateContent?key=${geminiApiKey}`,
       method: 'POST',
       timeout: 25000,
       headers: {

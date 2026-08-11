@@ -58,6 +58,7 @@ body {
   letter-spacing: 2px;
   flex-shrink: 0;
 }
+#title .ai-accent { color: var(--gold); }
 #hint {
   font-family: var(--font-mono);
   font-size: 9px;

@@ -1,6 +1,6 @@
 {
   "name": "lol-coach-overlay",
-  "version": "2.0.2",
+  "version": "2.1.0",
   "description": "League of Legends real-time coaching overlay",
   "main": "main.js",
   "scripts": {
@@ -50,6 +50,8 @@
       "ai-setup-preload.js",
       "info-preload.js",
       "control-panel-preload.js",
+      "game-scout-preload.js",
+      "dashboard-preload.js",
       "src/**",
       "assets/**",
       "node_modules/**"

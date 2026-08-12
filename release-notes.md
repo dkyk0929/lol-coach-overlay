@@ -1,3 +1,17 @@
+## Rift SensAI v2.1.0 - Dashboard Mode, Jungler Gank Timer
+
+### New Feature: Dashboard
+A new resizable, freely-movable window showing a bigger, easier-to-read view of live match data — jungler status, CS/gold, the current coaching tip, and a full scrolling alert feed that doesn't vanish like the bar's quick toasts do. Not tied to a second monitor — drag it anywhere, including a second display if you have one, or just resize it on your primary screen. Toggle it from the new **DASHBOARD** button under the bar's icon row.
+
+Credit where it's due: this was inspired by a PR from **jstmrby** on GitHub proposing a second-monitor-gated "Dashboard Mode." We went with a different mechanism (a plain resizable window, always available, no display-detection gating) rather than merging that PR directly, but the core ideas — a persistent detail view, the scrolling alert feed, and the compact gank-status readout — came from that proposal. Thanks for the idea.
+
+### New: Jungler Gank Timer
+The jungler status readout in the bar (and now the dashboard) shows elapsed time since they were last seen ("top side 0:32 ago") plus their live KDA, instead of just a static "last seen" label.
+
+### Layout
+- Bar widened slightly and the left icon strip reorganized into two rows (icons on top, Dashboard button below) to fit the new button without cramping anything.
+- Fixed the opacity panel and window centering, both of which had drifted out of sync with earlier layout changes.
+
 ## Rift SensAI v2.0.2 - Fix Gemini API Error for New Users
 
 ### Bug Fixes

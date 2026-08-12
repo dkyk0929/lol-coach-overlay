@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' https://fonts.googleapis.com; font-src https://fonts.gstatic.com;">
+  <title>Dashboard</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="dashboard.css">
+</head>
+<body>
+<div id="app">
+
+  <div id="header">
+    <span id="header-label">DASHBOARD</span>
+    <button id="btn-close">✕</button>
+  </div>
+
+  <div id="body">
+    <div id="waiting-msg">Waiting for a match…</div>
+
+    <div id="content" class="hidden">
+      <div class="row-2">
+        <div class="card" id="jg-card">
+          <span id="jg-dot">●</span>
+          <span id="jg-text">detecting…</span>
+        </div>
+        <div class="card" id="cs-card">
+          <span id="cs-text">—</span>
+          <span id="wave-text"></span>
+          <span id="gold-text"></span>
+        </div>
+      </div>
+
+      <div class="card" id="focus-card">
+        <span id="focus-text">Warming up…</span>
+      </div>
+
+      <div class="card hidden" id="allin-card">
+        <span id="allin-text"></span>
+      </div>
+
+      <div id="feed-card">
+        <div id="feed-list"></div>
+      </div>
+    </div>
+  </div>
+
+</div>
+<script src="dashboard.js"></script>
+</body>
+</html>

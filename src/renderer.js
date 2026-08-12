@@ -326,6 +326,7 @@ $('btn-log').addEventListener('click',     () => window.lolCoach.toggleBattleLog
 $('btn-coffee').addEventListener('click',  () => window.lolCoach.openUrl('https://buymeacoffee.com/bdannykimt'))
 $('btn-opacity').addEventListener('click', () => toggleOpacityPanel())
 $('btn-info').addEventListener('click',    () => window.lolCoach.toggleInfoWindow())
+$('btn-dashboard').addEventListener('click', () => window.lolCoach.toggleDashboard())
 
 // Opacity slider
 $('opacity-slider').addEventListener('input', (e) => applyOpacity(parseInt(e.target.value)))
@@ -527,7 +528,38 @@ window.lolCoach.onGameData((data) => {
 
   state.prevLevel     = level
   state.prevItemCount = items.length
+
+  broadcastDashboard()
 })
+
+// ── Dashboard window feed ────────────────────────────────────────────────────
+// Reads the same DOM/state the bar already computed each tick — no duplicate
+// tracking logic, just a compact summary forwarded to the optional dashboard.
+function broadcastDashboard() {
+  const allInBadge = $('allin-badge')
+  const csEl = $('cs-delta'), goldEl = $('gold-diff'), waveEl = $('wave-trend'), objEl = $('obj-countdown')
+
+  window.lolCoach.sendDashboardUpdate({
+    running:      state.running,
+    gameTime:     state.gameTime,
+    champion:     state.myChampion,
+    position:     state.myPosition,
+    jgLine:       $('jg-last')?.textContent ?? '',
+    jgColor:      $('jg-last')?.style.color ?? '',
+    csText:       csEl?.textContent ?? '',
+    csColor:      csEl?.style.color ?? '',
+    goldText:     goldEl?.textContent ?? '',
+    goldColor:    goldEl?.style.color ?? '',
+    waveTrend:    waveEl?.textContent ?? '',
+    objCountdown: objEl?.textContent ?? '',
+    allyDrakes:   $('ally-drakes')?.textContent ?? '0',
+    enemyDrakes:  $('enemy-drakes')?.textContent ?? '0',
+    focusText:    focusText?.textContent ?? '',
+    focusColor:   focusText?.style.color ?? '',
+    allIn:        allInBadge && !allInBadge.classList.contains('hidden') ? allInBadge.textContent : null,
+    alerts:       state.alertLogFull.slice(-40).slice().reverse(),
+  })
+}
 
 window.lolCoach.onGameNotRunning(() => {
   if (state.running) {
@@ -551,6 +583,7 @@ window.lolCoach.onFinalEvents((data) => {
 // ── Feature 5: Post-game recap ───────────────────────────────────────────────
 function showPostGameRecap() {
   state.running = false  // prevent re-trigger on repeated game-not-running events
+  broadcastDashboard()
 
   const duration = fmtTime(state.gameTime)
   const kda      = `${state.kills}/${state.deaths}/${state.assists}`
@@ -724,19 +757,36 @@ function setJunglerThreat(level) {
   if (level) el.classList.add(`jg-${level}`)
 }
 
-function renderJungler() {
+function fmtClock(totalSeconds) {
+  const s = Math.max(0, Math.floor(totalSeconds))
+  return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`
+}
+
+function renderJungler(livePlayer, gameTime) {
   const j = state.jungler
   if (!j.name) return
   const lastEl = $('jg-last')
+
+  // Objective countdown already lives in the drake-zone — this line stays
+  // focused on the jungler themselves: where/when last seen, plus KDA.
+  const elapsed = Math.max(0, Math.floor((gameTime ?? state.gameTime) - j.lastSeenTime))
+  const elapsedStr = elapsed < 60 ? `${elapsed}s ago` : `${fmtClock(elapsed)} ago`
+
+  let eventStr
   if (j.isDead) {
-    lastEl.textContent = `${j.champion} 💀 dead`; lastEl.style.color = '#1FD65F'
+    eventStr = `${j.champion} 💀 dead`
   } else if (j.lastSeenSide === 'objective') {
-    lastEl.textContent = `${j.champion} · last: obj`; lastEl.style.color = '#5A6A7A'
+    eventStr = `${j.champion} · obj ${elapsedStr}`
   } else if (j.lastSeenSide) {
-    lastEl.textContent = `${j.champion} · last: ${j.lastSeenSide}`; lastEl.style.color = '#5A6A7A'
+    eventStr = `${j.champion} · ${j.lastSeenSide} ${elapsedStr}`
   } else {
-    lastEl.textContent = `${j.champion} · untracked`; lastEl.style.color = '#5A6A7A'
+    eventStr = `${j.champion} · untracked`
   }
+
+  const kda = livePlayer?.scores ? ` | ${livePlayer.scores.kills ?? 0}·${livePlayer.scores.deaths ?? 0}` : ''
+
+  lastEl.textContent = eventStr + kda
+  lastEl.style.color = j.isDead ? '#1FD65F' : '#5A6A7A'
 }
 
 // ── Timeline alerts ──────────────────────────────────────────────────────────
@@ -1061,7 +1111,7 @@ function updateJungler(gameTime, allPlayers, myTeam) {
     }
     checkObjectiveJgProximity(gameTime, unseen)
   }
-  renderJungler()
+  renderJungler(j, gameTime)
 }
 
 // Objectives draw junglers toward them before/around spawn — heads-up the

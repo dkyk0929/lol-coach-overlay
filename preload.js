@@ -30,4 +30,6 @@ contextBridge.exposeInMainWorld('lolCoach', {
   getScoutContext:     ()       => ipcRenderer.invoke('get-scout-context'),
   getChampKit:         ()       => ipcRenderer.invoke('get-champ-kit'),
   onFinalEvents:       (cb)    => ipcRenderer.on('final-events', (_, data) => cb(data)),
+  toggleDashboard:     ()       => ipcRenderer.send('toggle-dashboard'),
+  sendDashboardUpdate: (payload) => ipcRenderer.send('dashboard-update', payload),
 })

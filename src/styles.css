@@ -108,21 +108,25 @@ body {
   flex-shrink: 0;
 }
 
-/* ── Left action strip — Log · AI · Coffee ── */
+/* ── Left action strip — icon row on top, Dashboard toggle below ── */
 #left-actions {
   position: absolute;
   top: 0; bottom: 0;
   right: 76px;
-  width: 52px;
-  display: grid;
-  grid-template-columns: repeat(2, 1fr);
-  grid-template-rows: repeat(2, 1fr);
-  align-content: center;
+  width: 108px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
   gap: 4px;
   z-index: 20;
   -webkit-app-region: no-drag;
-  padding: 10px 4px;
+  padding: 8px 4px;
   border-left: 1px solid var(--border-color);
+}
+
+#icon-row {
+  display: flex;
+  gap: 4px;
 }
 
 #left-actions button {
@@ -137,6 +141,7 @@ body {
   transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
   font-family: var(--font-sans);
 }
+#icon-row button { flex: 1; }
 #left-actions button:hover {
   border-color: var(--border-hover);
   color: var(--text-primary);
@@ -150,6 +155,24 @@ body {
 #btn-ai.active  { color: var(--teal); border-color: rgba(0,222,201,0.5); }
 #btn-coffee     { font-size: 11px; }
 #btn-coffee:hover, #btn-info:hover { border-color: var(--border-hover); color: var(--gold); }
+
+/* ── Dashboard button — second row, same width as the icon row above ── */
+#btn-dashboard {
+  width: 100%;
+  height: 16px;
+  background: rgba(0, 222, 201, 0.05);
+  border: 1px solid rgba(0, 222, 201, 0.25);
+  color: var(--teal);
+  font-family: var(--font-mono);
+  font-size: 8px;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+}
+#btn-dashboard:hover {
+  background: rgba(0, 222, 201, 0.12);
+  border-color: var(--teal);
+  box-shadow: 0 2px 8px var(--teal-glow);
+}
 
 /* ── Util grid — mute + opacity ── */
 #util-grid {
@@ -189,7 +212,7 @@ body {
 #opacity-panel {
   position: absolute;
   top: 8px;
-  right: 132px;
+  right: 8px;
   background: rgba(10, 15, 26, 0.95);
   border: 1px solid var(--border-color);
   border-radius: 6px;
@@ -270,7 +293,7 @@ body {
 #game-bar {
   height: 72px; flex-shrink: 0;
   display: flex; align-items: stretch;
-  padding-right: 132px;
+  padding-right: 192px;
 }
 
 .bar-divider {
@@ -280,7 +303,7 @@ body {
 
 /* ── JG zone — leftmost anchor in-game ── */
 #jg-zone {
-  width: 180px; flex-shrink: 0;
+  width: 205px; flex-shrink: 0;
   display: flex; align-items: center; gap: 6px;
   padding: 0 14px; font-family: var(--font-mono); font-size: 12px;
   transition: background 0.3s;

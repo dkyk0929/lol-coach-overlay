@@ -1138,6 +1138,71 @@ function sendScoutData() {
 
 ipcMain.on('close-scout', () => { if (gameScoutWindow && !gameScoutWindow.isDestroyed()) gameScoutWindow.close() })
 
+// ── Dashboard window ─────────────────────────────────────────────────────────
+// A plain resizable/movable window, not gated behind second-monitor detection —
+// drag it to a second display if you have one, or just resize/place it on your
+// primary screen. Content reflows responsively (see dashboard.css) rather than
+// assuming a fixed size.
+let dashboardWindow = null
+let lastDashboardPayload = null
+
+function createDashboardWindow() {
+  if (dashboardWindow && !dashboardWindow.isDestroyed()) { dashboardWindow.focus(); return }
+  const cfg = loadConfig()
+  const { width: sw, height: sh } = screen.getPrimaryDisplay().workAreaSize
+  const w = cfg.dashboardW ?? 420, h = cfg.dashboardH ?? 560
+  dashboardWindow = new BrowserWindow({
+    width: w, height: h,
+    minWidth: 280, minHeight: 320,
+    x: cfg.dashboardX ?? Math.floor((sw - w) / 2),
+    y: cfg.dashboardY ?? Math.floor((sh - h) / 2),
+    transparent: true,
+    backgroundColor: '#00000000',
+    frame: false,
+    alwaysOnTop: true,
+    skipTaskbar: false,
+    resizable: true,
+    hasShadow: false,
+    focusable: true,
+    webPreferences: {
+      preload: path.join(__dirname, 'dashboard-preload.js'),
+      contextIsolation: true,
+      nodeIntegration: false,
+    },
+  })
+  dashboardWindow.loadFile(path.join(__dirname, 'src', 'dashboard.html'))
+  dashboardWindow.setAlwaysOnTop(true, 'screen-saver')
+
+  const savePosition = () => {
+    if (!dashboardWindow || dashboardWindow.isDestroyed()) return
+    const [x, y] = dashboardWindow.getPosition()
+    saveConfig({ dashboardX: x, dashboardY: y })
+  }
+  const saveSize = () => {
+    if (!dashboardWindow || dashboardWindow.isDestroyed()) return
+    const [width, height] = dashboardWindow.getSize()
+    saveConfig({ dashboardW: width, dashboardH: height })
+  }
+  dashboardWindow.on('moved', savePosition)
+  dashboardWindow.on('resize', saveSize)
+  dashboardWindow.on('closed', () => { dashboardWindow = null })
+  dashboardWindow.webContents.once('did-finish-load', () => {
+    if (lastDashboardPayload) dashboardWindow.webContents.send('dashboard-data', lastDashboardPayload)
+  })
+}
+
+function toggleDashboardWindow() {
+  if (dashboardWindow && !dashboardWindow.isDestroyed()) { dashboardWindow.close(); return }
+  createDashboardWindow()
+}
+
+ipcMain.on('close-dashboard', () => { if (dashboardWindow && !dashboardWindow.isDestroyed()) dashboardWindow.close() })
+ipcMain.on('toggle-dashboard', () => toggleDashboardWindow())
+ipcMain.on('dashboard-update', (_, payload) => {
+  lastDashboardPayload = payload
+  if (dashboardWindow && !dashboardWindow.isDestroyed()) dashboardWindow.webContents.send('dashboard-data', payload)
+})
+
 // ── Post-game window ──────────────────────────────────────────────────────────
 let postGameWindow = null
 
@@ -1263,9 +1328,9 @@ function createWindow() {
   initAI(cfg)
 
   mainWindow = new BrowserWindow({
-    width: 900,
+    width: 960,
     height: 72,
-    x: cfg.barX ?? Math.floor((screenWidth - 780) / 2),
+    x: cfg.barX ?? Math.floor((screenWidth - 960) / 2),
     y: cfg.barY ?? 8,
     transparent: true,
     backgroundColor: '#00000000',

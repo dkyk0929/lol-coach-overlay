@@ -1,5 +1,8 @@
 ## Rift SensAI v2.1.0 - Dashboard Mode, Jungler Gank Timer
 
+![Dashboard mockup](.github/release-media/v2.1.0/dashboard-mockup.png)
+*Illustrative mockup, not a live-match screenshot — top: the new bar layout, bottom: the Dashboard window.*
+
 ### New Feature: Dashboard
 A new resizable, freely-movable window showing a bigger, easier-to-read view of live match data — jungler status, CS/gold, the current coaching tip, and a full scrolling alert feed that doesn't vanish like the bar's quick toasts do. Not tied to a second monitor — drag it anywhere, including a second display if you have one, or just resize it on your primary screen. Toggle it from the new **DASHBOARD** button under the bar's icon row.
 

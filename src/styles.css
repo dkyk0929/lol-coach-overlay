@@ -156,8 +156,11 @@ body {
 #btn-coffee     { font-size: 11px; }
 #btn-coffee:hover, #btn-info:hover { border-color: var(--border-hover); color: var(--gold); }
 
-/* ── Dashboard button — second row, same width as the icon row above ── */
-#btn-dashboard {
+/* ── Dashboard button — second row, same width as the icon row above ──
+   Selector is "#left-actions #btn-dashboard" (two IDs) so it reliably beats
+   the generic "#left-actions button" rule above (ID+element specificity),
+   which was otherwise overriding this button back to the default gray style. */
+#left-actions #btn-dashboard {
   width: 100%;
   height: 16px;
   background: rgba(0, 222, 201, 0.05);
@@ -168,7 +171,7 @@ body {
   font-weight: 700;
   letter-spacing: 0.5px;
 }
-#btn-dashboard:hover {
+#left-actions #btn-dashboard:hover {
   background: rgba(0, 222, 201, 0.12);
   border-color: var(--teal);
   box-shadow: 0 2px 8px var(--teal-glow);

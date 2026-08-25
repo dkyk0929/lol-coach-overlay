@@ -1,3 +1,16 @@
+## Rift SensAI v2.1.1 - Stability, Resiliency & Chaos Hardening
+
+### Bug Fixes & Stability Hardening
+- **Network Queue Resiliency**: Added socket timeouts and timeout handlers to Riot API and JSON fetches to prevent head-of-line deadlocks on stalled connections.
+- **In-Game State Error Prevention**: Hardened `findMe` and `activePlayer` name extraction to guard against null/undefined values in spectator mode, bot games, or during loading transitions.
+- **Coaching Relevance NLP Filter**: Refined death/alive status filter to accurately evaluate present-state conditions without discarding valid coaching notes that reference past events.
+- **Battle Log Deletion**: Switched deletion logic to exact ISO timestamps to avoid collateral deletions of consecutive matches.
+- **IPC Protocol Security**: Enforced protocol scheme whitelisting (`http:`/`https:`) before opening external URLs.
+- **Atomic Config Persistence**: Config updates now use atomic file replacement and in-memory fallbacks to safeguard against data corruption on abrupt shutdowns.
+- **Semantic Versioning Parser**: Fixed updater version comparison on pre-release tags with non-numeric suffixes.
+- **Window Lifecycle Management**: Cleaned up window references on close across all overlay sub-windows.
+- **TTS Sync & IPC Guards**: Synchronized voice mute states to the Control Panel and added type guards across all IPC key handlers.
+
 ## Rift SensAI v2.1.0 - Dashboard Mode, Jungler Gank Timer
 
 ![Dashboard mockup](.github/release-media/v2.1.0/dashboard-mockup.png)

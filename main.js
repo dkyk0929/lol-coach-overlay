@@ -68,6 +68,7 @@ function createBattleLogWindow() {
   })
   battleLogWindow.loadFile(path.join(__dirname, 'src', 'battle-log.html'))
   battleLogWindow.setAlwaysOnTop(true, 'screen-saver')
+  battleLogWindow.on('closed', () => { battleLogWindow = null })
   battleLogWindow.webContents.once('did-finish-load', () => {
     battleLogWindow.webContents.send('log-data', { battleLog: loadBattleLog(), history: loadHistory() })
   })
@@ -168,7 +169,9 @@ ipcMain.handle('tts-toggle', () => {
 })
 
 ipcMain.on('set-tts-state', (_, muted) => {
-  ttsMuted = muted
+  ttsMuted = !!muted
+  if (controlPanelWindow && !controlPanelWindow.isDestroyed())
+    controlPanelWindow.webContents.send('overlay-state', { ttsMuted })
   tray?.setContextMenu(buildTrayMenu())
 })
 
@@ -201,6 +204,7 @@ function createAiSetupWindow() {
   })
   aiSetupWindow.loadFile(path.join(__dirname, 'src', 'ai-setup.html'))
   aiSetupWindow.setAlwaysOnTop(true, 'screen-saver')
+  aiSetupWindow.on('closed', () => { aiSetupWindow = null })
 }
 
 ipcMain.on('open-ai-setup',   () => createAiSetupWindow())
@@ -237,6 +241,7 @@ function createInfoWindow() {
   })
   infoWindow.loadFile(path.join(__dirname, 'src', 'info.html'))
   infoWindow.setAlwaysOnTop(true, 'screen-saver')
+  infoWindow.on('closed', () => { infoWindow = null })
 }
 
 ipcMain.on('open-info-window',   () => createInfoWindow())
@@ -266,7 +271,7 @@ ipcMain.handle('get-riot-status', () => {
 })
 
 ipcMain.handle('save-riot-api-key', async (_, key, region) => {
-  const trimmed = key.trim()
+  const trimmed = typeof key === 'string' ? key.trim() : ''
   const originalKey = riotApiKey
   const originalRegion = riotRegion
   riotApiKey = trimmed
@@ -287,7 +292,7 @@ ipcMain.handle('save-riot-api-key', async (_, key, region) => {
 })
 
 ipcMain.handle('save-api-key-from-setup', async (_, provider, key) => {
-  const trimmed = key.trim()
+  const trimmed = typeof key === 'string' ? key.trim() : ''
   if (provider === 'gemini') {
     const originalGeminiApiKey = geminiApiKey
     geminiApiKey = trimmed
@@ -373,6 +378,7 @@ function createRecentGamesWindow() {
   })
   recentGamesWindow.loadFile(path.join(__dirname, 'src', 'recent-games.html'))
   recentGamesWindow.setAlwaysOnTop(true, 'screen-saver')
+  recentGamesWindow.on('closed', () => { recentGamesWindow = null })
   recentGamesWindow.webContents.once('did-finish-load', () => {
     recentGamesWindow.webContents.send('recent-data', loadHistory().slice(0, 10))
   })
@@ -428,13 +434,27 @@ const LOCKFILE_PATHS = [
 const configPath = path.join(app.getPath('userData'), 'config.json')
 const itemCachePath = path.join(app.getPath('userData'), 'item-recipes-cache.json')
 
+let inMemoryConfig = null
 function loadConfig() {
-  try { return JSON.parse(fs.readFileSync(configPath, 'utf8')) } catch { return {} }
+  try {
+    const raw = fs.readFileSync(configPath, 'utf8')
+    inMemoryConfig = JSON.parse(raw)
+    return inMemoryConfig
+  } catch {
+    return inMemoryConfig || {}
+  }
 }
 
 function saveConfig(patch) {
-  const cfg = loadConfig()
-  try { fs.writeFileSync(configPath, JSON.stringify({ ...cfg, ...patch })) } catch {}
+  const cfg = { ...loadConfig(), ...patch }
+  inMemoryConfig = cfg
+  try {
+    const tmpPath = `${configPath}.tmp`
+    fs.writeFileSync(tmpPath, JSON.stringify(cfg, null, 2))
+    fs.renameSync(tmpPath, configPath)
+  } catch {
+    try { fs.writeFileSync(configPath, JSON.stringify(cfg, null, 2)) } catch {}
+  }
 }
 
 function initAI(cfg) {
@@ -758,11 +778,13 @@ function fetchLCU(lcuPath) {
 
 function fetchJSON(url) {
   return new Promise((resolve, reject) => {
-    https.get(url, { rejectUnauthorized: true }, (res) => {
+    const req = https.get(url, { rejectUnauthorized: true, timeout: 10000 }, (res) => {
       let data = ''
       res.on('data', c => data += c)
       res.on('end', () => { try { resolve(JSON.parse(data)) } catch { reject(new Error('parse')) } })
-    }).on('error', reject)
+    })
+    req.on('timeout', () => { req.destroy(); reject(new Error('Fetch timeout')) })
+    req.on('error', reject)
   })
 }
 
@@ -772,7 +794,8 @@ let riotQueueTail = Promise.resolve()
 function fetchRiotAPI(urlPath) {
   const run = () => new Promise((resolve, reject) => {
     if (!riotApiKey) { reject(new Error('No Riot API key configured')); return }
-    https.get(`https://${riotRegion}.api.riotgames.com${urlPath}`, {
+    const req = https.get(`https://${riotRegion}.api.riotgames.com${urlPath}`, {
+      timeout: 10000,
       headers: {
         'X-Riot-Token': riotApiKey,
         // Riot's edge/WAF blocks requests with no User-Agent (returns a bare 403) — send one.
@@ -789,7 +812,9 @@ function fetchRiotAPI(urlPath) {
           reject(new Error(`Riot API HTTP ${res.statusCode}`))
         }
       })
-    }).on('error', reject)
+    })
+    req.on('timeout', () => { req.destroy(); reject(new Error('Riot API timeout')) })
+    req.on('error', reject)
   })
   const next = riotQueueTail.then(run, run)
   riotQueueTail = next.catch(() => {}).then(() => new Promise(r => setTimeout(r, 60)))
@@ -1065,8 +1090,9 @@ function createChampSelectWindow() {
   })
   champSelectWindow.loadFile(path.join(__dirname, 'src', 'champ-select.html'))
   champSelectWindow.setAlwaysOnTop(true, 'screen-saver')
+  champSelectWindow.on('closed', () => { champSelectWindow = null })
   champSelectWindow.on('moved', () => {
-    if (!champSelectWindow.isDestroyed()) {
+    if (champSelectWindow && !champSelectWindow.isDestroyed()) {
       const [x, y] = champSelectWindow.getPosition()
       saveConfig({ csBarX: x, csBarY: y })
     }
@@ -1230,6 +1256,7 @@ function createPostGameWindow(data) {
   })
   postGameWindow.loadFile(path.join(__dirname, 'src', 'post-game.html'))
   postGameWindow.setAlwaysOnTop(true, 'screen-saver')
+  postGameWindow.on('closed', () => { postGameWindow = null })
   postGameWindow.webContents.once('did-finish-load', () => {
     postGameWindow.webContents.send('post-game-data', data)
   })
@@ -1353,11 +1380,12 @@ function createWindow() {
   createNotifWindow()
 
   mainWindow.on('moved', () => {
-    if (!mainWindow.isDestroyed()) {
+    if (mainWindow && !mainWindow.isDestroyed()) {
       const [x, y] = mainWindow.getPosition()
       saveConfig({ barX: x, barY: y })
     }
   })
+  mainWindow.on('closed', () => { mainWindow = null })
 
   startPolling()
 }
@@ -1386,6 +1414,7 @@ function createNotifWindow() {
   notifWindow.loadFile(path.join(__dirname, 'src', 'notif.html'))
   notifWindow.setAlwaysOnTop(true, 'screen-saver')
   notifWindow.setIgnoreMouseEvents(true, { forward: true })
+  notifWindow.on('closed', () => { notifWindow = null })
 }
 
 
@@ -1411,10 +1440,15 @@ function fetchLatestRelease() {
   })
 }
 
-// Returns true if `a` (e.g. "1.8.2") is newer than `b`
+// Returns true if `a` (e.g. "1.8.2" or "2.1.1-beta.1") is newer than `b`
 function isNewerVersion(a, b) {
-  const pa = a.split('.').map(Number)
-  const pb = b.split('.').map(Number)
+  if (!a || !b) return false
+  const parseParts = (v) => String(v).replace(/^v/, '').split('.').map(part => {
+    const num = parseInt(String(part).replace(/\D.*$/, ''), 10)
+    return isNaN(num) ? 0 : num
+  })
+  const pa = parseParts(a)
+  const pb = parseParts(b)
   for (let i = 0; i < Math.max(pa.length, pb.length); i++) {
     const na = pa[i] ?? 0, nb = pb[i] ?? 0
     if (na !== nb) return na > nb
@@ -1607,16 +1641,15 @@ ipcMain.on('save-battle-log',  (_, entry) => saveBattleLogEntry(entry))
 ipcMain.handle('get-battle-log', () => loadBattleLog())
 
 ipcMain.handle('delete-log-entry', (_, date) => {
-  const target = new Date(date).getTime()
-  const within = (d) => Math.abs(new Date(d).getTime() - target) < 180000
-  // Remove from battle log
+  if (!date) return
+  // Remove from battle log by exact ISO date string
   try {
-    const bl = loadBattleLog().filter(e => !within(e.date))
+    const bl = loadBattleLog().filter(e => e.date !== date)
     fs.writeFileSync(battleLogPath, JSON.stringify(bl))
   } catch {}
   // Remove from session history
   try {
-    const h = loadHistory().filter(e => !within(e.date))
+    const h = loadHistory().filter(e => e.date !== date)
     fs.writeFileSync(sessionPath, JSON.stringify(h))
   } catch {}
   // Push updated data to open window
@@ -1645,7 +1678,15 @@ ipcMain.on('show-post-game',   (_, data) => createPostGameWindow(data))
 ipcMain.on('close-post-game',  () => { if (postGameWindow && !postGameWindow.isDestroyed()) postGameWindow.close() })
 ipcMain.on('open-coffee',      () => shell.openExternal('https://buymeacoffee.com/bdannykimt'))
 ipcMain.on('open-recent-games', () => createRecentGamesWindow())
-ipcMain.on('open-url',          (_, url) => shell.openExternal(url))
+ipcMain.on('open-url',          (_, rawUrl) => {
+  if (typeof rawUrl !== 'string') return
+  try {
+    const parsed = new URL(rawUrl)
+    if (parsed.protocol === 'http:' || parsed.protocol === 'https:') {
+      shell.openExternal(rawUrl)
+    }
+  } catch {}
+})
 
 ipcMain.handle('scout-stats', async (_, { summonerName }) => {
   if (!lcuPort || !lcuPass || !summonerName) return null
@@ -1762,7 +1803,7 @@ ipcMain.handle('lcu-stats', async (_, { summonerId, championId }) => {
 })
 
 ipcMain.handle('save-api-key', (event, key) => {
-  const trimmed = key.trim()
+  const trimmed = typeof key === 'string' ? key.trim() : ''
   saveConfig({ apiKey: trimmed, aiProvider: 'anthropic' })
   initAI(loadConfig())
   return true

@@ -161,8 +161,8 @@ function isCoachStatementRelevant(text, apiElapsedTime = 0) {
   // dead/alive/respawning status the AI got wrong by the time the response
   // came back, not just Dragon/Baron. Live status comes from state.allPlayers,
   // which the poll loop keeps fresh independent of the AI round trip.
-  const deathWords  = /\b(dead|died|dying|killed|respawn(?:s|ing|ed)?)\b/;
-  const aliveWords  = /\b(alive|respawned|back (?:up|in lane)|returned)\b/;
+  const deathWords  = /\b(is dead|currently dead|dead right now|dying|respawning|respawns in)\b/i;
+  const aliveWords  = /\b(alive|respawned|back (?:up|in lane)|returned)\b/i;
   for (const p of state.allPlayers ?? []) {
     const champLower = p.championName?.toLowerCase();
     if (!champLower || !lowerText.includes(champLower)) continue;
@@ -391,7 +391,7 @@ window.lolCoach.onGameData((data) => {
     state            = freshState()
     state.running    = true
     state.aiEnabled  = aiEnabled
-    state.activeName = activePlayer.summonerName
+    state.activeName = activePlayer?.summonerName || ''
     waitingScreen.classList.add('hidden')
     gameScreen.classList.remove('hidden')
     appEl.classList.add('dimmed')
@@ -1568,11 +1568,15 @@ document.addEventListener('mousemove', () => { if (audioCtx.state === 'suspended
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 function findMe(allPlayers, activeName) {
-  return allPlayers.find(p =>
-    p.summonerName === activeName ||
-    p.summonerName === activeName.split('#')[0] ||
-    activeName.startsWith(p.summonerName)
-  )
+  if (!activeName || !Array.isArray(allPlayers) || !allPlayers.length) return null
+  return allPlayers.find(p => {
+    if (!p || typeof p.summonerName !== 'string') return false
+    return (
+      p.summonerName === activeName ||
+      p.summonerName === activeName.split('#')[0] ||
+      activeName.startsWith(p.summonerName)
+    )
+  }) ?? null
 }
 
 function matchName(a, b) {

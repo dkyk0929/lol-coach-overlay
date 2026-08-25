@@ -1,6 +1,6 @@
 {
   "name": "lol-coach-overlay",
-  "version": "2.1.0",
+  "version": "2.1.1",
   "description": "League of Legends real-time coaching overlay",
   "main": "main.js",
   "scripts": {

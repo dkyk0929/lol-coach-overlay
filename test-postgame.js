@@ -31,7 +31,7 @@ const body = JSON.stringify({
 
 const req = https.request({
   hostname: 'generativelanguage.googleapis.com',
-  path: `/v1beta/models/gemini-3.1-flash-lite:generateContent?key=${geminiApiKey}`,
+  path: `/v1beta/models/gemini-3.5-flash-lite:generateContent?key=${geminiApiKey}`,
   method: 'POST',
   headers: {
     'content-type': 'application/json',

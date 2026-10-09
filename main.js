@@ -631,7 +631,7 @@ function callGemini({ systemText, userText, maxTokens }) {
     
     const req = https.request({
       hostname: 'generativelanguage.googleapis.com',
-      path: `/v1beta/models/gemini-3.1-flash-lite:generateContent?key=${geminiApiKey}`,
+      path: `/v1beta/models/gemini-3.5-flash-lite:generateContent?key=${geminiApiKey}`,
       method: 'POST',
       timeout: 15000,
       headers: {
@@ -691,7 +691,7 @@ function callGeminiWithSearch({ systemText, userText, maxTokens }) {
 
     const req = https.request({
       hostname: 'generativelanguage.googleapis.com',
-      path: `/v1beta/models/gemini-3.1-flash-lite:generateContent?key=${geminiApiKey}`,
+      path: `/v1beta/models/gemini-3.5-flash-lite:generateContent?key=${geminiApiKey}`,
       method: 'POST',
       timeout: 25000,
       headers: {
@@ -1906,7 +1906,7 @@ ipcMain.handle('ai-champ-select', async (event, prompt) => {
 
   try {
     return await callAI({
-      systemText: 'You are a League of Legends champion select coach. Recommend exactly 3 champions for the given role. Format your response as exactly 3 lines: "1. ChampName — reason" where reason is under 10 words. Consider enemy comp and ally synergy. Be specific.' + getGameRulesText(),
+      systemText: 'You are a League of Legends champion select coach. Recommend the number of champions the user asks for (3 if unspecified) for the given role. Format your response as exactly that many lines: "1. ChampName — reason" where reason is under 10 words. Consider enemy comp and ally synergy. Never recommend a champion that is banned, already picked by either team, or listed under "Do not recommend". Be specific.' + getGameRulesText(),
       userText: prompt, maxTokens: 160,
     })
   } catch (e) {

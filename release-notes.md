@@ -1,4 +1,14 @@
-## Rift SensAI v2.1.1 - Stability, Resiliency & Chaos Hardening
+## Rift SensAI v2.2.0 - Swap Champ Select Picks, Gemini 3.5 Flash-Lite
+
+### New Feature: Swap Champ Select Picks
+Don't like one of the 3 AI champion recommendations? **Click the card** and it's swapped for a fresh pick, with the other two staying put. The AI is told to avoid everything you've already dismissed and everything still on screen, and (new) to never suggest a banned or already-picked champion. Dismissals carry through the whole champ select, so if the draft changes and the AI re-recommends, your rejected picks don't come back. If there's no other suggestion, or the AI request fails, the card becomes a greyed note instead of breaking.
+
+### AI Model Update
+- Gemini coaching moved from `gemini-3.1-flash-lite` to **`gemini-3.5-flash-lite`**. Google lists 3.1-flash-lite for shutdown on May 7, 2027 and names 3.5-flash-lite as its replacement; 3.5-flash-lite has no announced shutdown. Pricing is $0.30 / $2.50 per 1M input / output tokens (was $0.25 / $1.50). Note: Google lists Search grounding (used by the pre-game matchup research) as unavailable on the free tier for this model. If your Gemini key is on the free tier, matchup research may show as unavailable and coaching continues from general knowledge.
+
+### Data
+- Updated the in-app game rules context to Patch 26.20. Checked patches 26.16 through 26.19: no changes to Dragon / Baron / Void Grubs / Rift Herald timers and no removed or renamed items.
+
 
 ### Bug Fixes & Stability Hardening
 - **Network Queue Resiliency**: Added socket timeouts and timeout handlers to Riot API and JSON fetches to prevent head-of-line deadlocks on stalled connections.

@@ -94,12 +94,71 @@ function parsePicks(text) {
   return picks
 }
 
-function pickCard({ champion, reason }) {
-  return `<div class="pick-card">
-    <div class="pick-name">${escapeHtml(champion)}</div>
-    <div class="pick-reason">${escapeHtml(reason)}</div>
+// Champions the player swapped out this champ select (lowercase → display name).
+// The window is recreated per champ select, so this resets on its own.
+const dismissedPicks = new Map()
+let shownPicks     = []     // [{champion, reason} | {loading:true} | {note}] — one entry per card
+let lastPromptCtx  = null   // draft context reused when asking for a single replacement
+
+function pickCard(p, idx) {
+  if (p.loading) return `<div class="pick-card loading"><div class="pick-name">…</div><div class="pick-reason">Finding another pick</div></div>`
+  if (p.note)    return `<div class="pick-card note"><div class="pick-reason">${escapeHtml(p.note)}</div></div>`
+  return `<div class="pick-card swappable" data-idx="${idx}" title="Click to swap for a different pick">
+    <div class="pick-name">${escapeHtml(p.champion)}</div>
+    <div class="pick-reason">${escapeHtml(p.reason)}</div>
   </div>`
 }
+
+function renderPicks() {
+  document.getElementById('ai-cards').innerHTML = shownPicks.map(pickCard).join('')
+}
+
+function buildPickPrompt(ctx, count, shownNames) {
+  const { posName, allyPicks, enemyPicks, bans } = ctx
+  const dismissed = [...dismissedPicks.values()]
+  const avoid = [...new Set([...dismissed, ...shownNames])]
+  return [
+    `Champion select. My role: ${posName}`,
+    allyPicks.length  ? `Ally picks so far:  ${allyPicks.join(', ')}` : 'Ally picks: none yet',
+    enemyPicks.length ? `Enemy picks so far: ${enemyPicks.join(', ')}` : 'Enemy picks: none yet',
+    bans.length       ? `Bans: ${bans.join(', ')}` : 'Bans: none yet',
+    avoid.length      ? `Do not recommend: ${avoid.join(', ')}` : '',
+    `Recommend ${count} champion${count === 1 ? '' : 's'} for ${posName} that counter the enemy and synergize with allies.`,
+  ].filter(Boolean).join('\n')
+}
+
+// Clicking a card dismisses that champion and swaps in one fresh recommendation,
+// keeping the other cards where they are.
+async function swapPick(idx) {
+  const old = shownPicks[idx]
+  if (!old || old.loading || old.note || !lastPromptCtx) return
+
+  dismissedPicks.set(old.champion.toLowerCase(), old.champion)
+  const slot = { loading: true }
+  shownPicks[idx] = slot
+  renderPicks()
+
+  const stillShown = () => shownPicks.filter(p => p.champion).map(p => p.champion)
+  let replacement = null
+  try {
+    const result = await window.cs.aiRecommend(buildPickPrompt(lastPromptCtx, 1, stillShown()))
+    const candidate = result ? parsePicks(result)[0] : null
+    const key = candidate?.champion.toLowerCase()
+    const taken = shownPicks.some(p => p.champion && p.champion.toLowerCase() === key)
+    if (candidate && !dismissedPicks.has(key) && !taken) replacement = candidate
+  } catch { /* falls through to the note below */ }
+
+  // The draft may have changed (cards reset, or you locked in) while we waited
+  const at = shownPicks.indexOf(slot)
+  if (at === -1) return
+  shownPicks[at] = replacement ?? { note: 'No other suggestion right now' }
+  renderPicks()
+}
+
+document.getElementById('ai-cards').addEventListener('click', (e) => {
+  const card = e.target.closest('.pick-card.swappable')
+  if (card) swapPick(Number(card.dataset.idx))
+})
 
 function escapeHtml(str) {
   return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
@@ -118,7 +177,8 @@ async function maybeRequestAI({ position, myTeam, theirTeam, bans, myLocked }) {
       el.className   = 'locked-in'
       el.textContent = `✓ Locked in: ${myLocked}`
       el.style.color = ''
-      document.getElementById('ai-cards').innerHTML = ''
+      shownPicks = []
+      renderPicks()
     }
     return
   }
@@ -129,30 +189,25 @@ async function maybeRequestAI({ position, myTeam, theirTeam, bans, myLocked }) {
   lastAIPromptKey = promptKey
 
   const el       = document.getElementById('ai-content')
-  const cardsEl  = document.getElementById('ai-cards')
   el.className   = 'loading'
   el.style.color = ''
   el.textContent = '✦ Asking AI for picks...'
-  cardsEl.innerHTML = ''
+  shownPicks = []
+  renderPicks()
 
   const posName = { TOP:'Top', JUNGLE:'Jungle', MIDDLE:'Mid', BOTTOM:'Bot', UTILITY:'Support' }[position] ?? position
-  const lines = [
-    `Champion select. My role: ${posName}`,
-    allyPicks.length  ? `Ally picks so far:  ${allyPicks.join(', ')}` : 'Ally picks: none yet',
-    enemyPicks.length ? `Enemy picks so far: ${enemyPicks.join(', ')}` : 'Enemy picks: none yet',
-    bans.length       ? `Bans: ${bans.join(', ')}` : 'Bans: none yet',
-    `Recommend 3 champions for ${posName} that counter the enemy and synergize with allies.`,
-  ]
+  lastPromptCtx = { posName, allyPicks, enemyPicks, bans }
 
   aiPending = true
   try {
-    const result = await window.cs.aiRecommend(lines.join('\n'))
+    const result = await window.cs.aiRecommend(buildPickPrompt(lastPromptCtx, 3, []))
     if (result) {
-      const picks = parsePicks(result)
+      const picks = parsePicks(result).filter(p => !dismissedPicks.has(p.champion.toLowerCase()))
       if (picks.length) {
         el.textContent = ''
         el.className   = 'hidden'
-        cardsEl.innerHTML = picks.map(pickCard).join('')
+        shownPicks = picks
+        renderPicks()
       } else {
         // Fallback: AI didn't follow the expected format — show raw text rather than nothing
         el.className   = ''

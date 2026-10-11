@@ -622,10 +622,8 @@ function callGemini({ systemText, userText, maxTokens }) {
         parts: [{ text: systemText }]
       },
       generationConfig: {
-        maxOutputTokens: maxTokens,
-        thinkingConfig: {
-          thinkingBudget: 0
-        }
+        // Gemini 3.x thinks by default and thought tokens count against this limit, so leave headroom.
+        maxOutputTokens: maxTokens + 256
       }
     })
     
@@ -648,8 +646,9 @@ function callGemini({ systemText, userText, maxTokens }) {
             const errMsg = parsed.error?.message || `HTTP ${res.statusCode}`
             reject(new Error(errMsg))
           } else {
-            const text = parsed.candidates?.[0]?.content?.parts?.[0]?.text
-            resolve(text?.trim() ?? null)
+            const text = parsed.candidates?.[0]?.content?.parts
+              ?.filter(p => !p.thought).map(p => p.text).filter(Boolean).join(' ')
+            resolve(text?.trim() || null)
           }
         }
         catch (err) { reject(new Error('Failed to parse API response: ' + err.message)) }
@@ -682,10 +681,8 @@ function callGeminiWithSearch({ systemText, userText, maxTokens }) {
       },
       tools: [{ google_search: {} }],
       generationConfig: {
-        maxOutputTokens: maxTokens,
-        thinkingConfig: {
-          thinkingBudget: 0
-        }
+        // Gemini 3.x thinks by default and thought tokens count against this limit, so leave headroom.
+        maxOutputTokens: maxTokens + 256
       }
     })
 

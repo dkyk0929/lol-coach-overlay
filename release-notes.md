@@ -1,3 +1,8 @@
+## Rift SensAI v2.2.1 - Fix Gemini "Request contains an invalid argument" Error
+
+### Bug Fixes
+- Fixed all Gemini AI features (champ select picks, live coaching, game plan, post-game analysis, matchup research) failing with "Request contains an invalid argument" in v2.2.0. The request still sent a Gemini 2.5-era `thinkingBudget: 0` setting, which `gemini-3.5-flash-lite` does not accept. The setting is removed, the response limit now has headroom for the model's built-in thinking tokens, and the reply reader ignores thinking text. Claude users were not affected.
+
 ## Rift SensAI v2.2.0 - Swap Champ Select Picks, Gemini 3.5 Flash-Lite
 
 ### New Feature: Swap Champ Select Picks

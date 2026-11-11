@@ -9,9 +9,9 @@
 ### New Tactical Features
 - **Enemy Key Item & Power Spike Alerts**: Automatically scans all 5 enemies' inventories and alerts when an enemy purchases a game-changing defensive/active item (*Zhonya's Hourglass*, *Stopwatch*, *Guardian Angel*, *QSS*, *Hexdrinker/Maw*, *Executioner's/Oblivion Orb/Bramble*, *Banshee's*, *Edge of Night*, *Mejai's*) or completes a major `2,600g+` item.
 - **Active Baron & Elder Buff Duration Timers**: Tracks the exact remaining duration of Baron buff (`3:00`) and Elder Dragon buff (`2:30`) directly on the HUD countdown (`🟣BUFF 2:15` / `⚠BARON 2:15`) with a 30-second expiry heads-up.
-- **Objective Recall Window ("Pocket Gold") Calculator**: Alerts `42–55s` before Dragon, Baron, Void Grubs, or Rift Herald spawns if you are sitting on `1,100g+` unspent gold so you have time to reset and spend before the fight.
-- **Fed Threat & Shutdown Streak Alerts**: Flags fed enemy carries (`4+` kills with `>= 2.0` K/D) and warns when you reach a `3-kill` streak so you protect your shutdown bounty.
-- **Summoner Spell Context**: Surfaces the enemy laner's combat summoner spell (*Ignite*, *Exhaust*, *Barrier*, *Cleanse*, *TP*) on the situational HUD badge and feeds all 10 players' Summoner Spells + unspent gold + active buff durations into AI coaching prompts.
+- **Objective Recall Window & Overstay ("Pocket Gold") Calculator**: Alerts `42–55s` before Dragon, Baron, Void Grubs, or Rift Herald spawns if you are sitting on `1,100g+` unspent gold, and reminds you outside of objectives when sitting on `1,500g+` (`2,000g+` late) in pocket gold.
+- **Fed Threat, Shutdown Streak & Enemy AD/AP Damage Split**: Flags fed enemy carries (`4+` kills with `>= 2.0` K/D), warns when you reach a `3-kill` streak to protect your shutdown bounty, and calculates the live **Enemy Team AD vs. AP Damage Split** (`🛡 65% AD / 35% AP`) in the Dashboard and AI coaching context.
+- **Summoner Spell & Teleport Context**: Surfaces the enemy laner's combat summoner spell (*Ignite*, *Exhaust*, *Barrier*, *Cleanse*, *TP*) on the situational HUD badge, shows enemy Teleport count in the Dashboard, and feeds all 10 players' Summoner Spells + unspent gold + active buff durations into AI coaching prompts.
 
 ## Rift SensAI v2.2.2 - Fix Baron / Objective Team Attribution & Patch 26.22 Sync
 

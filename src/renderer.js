@@ -325,9 +325,12 @@ function freshState() {
     elderBuffAlly: false,
     buffExpiryAlerted: new Set(),
     pocketGoldAlerted: new Set(),
+    lastOverstayAlertAt: -999,
     fedEnemyAlerted: new Set(),
     myStreak: 0,
     myStreakAlerted: false,
+    enemyDamageSplit: '',
+    enemyTpCount: 0,
     jungler: {
       name: null, champion: null, level: 1,
       isDead: false, lastSeenTime: 0, lastSeenSide: null,
@@ -578,6 +581,9 @@ function broadcastDashboard() {
     csColor:      csEl?.style.color ?? '',
     goldText:     goldEl?.textContent ?? '',
     goldColor:    goldEl?.style.color ?? '',
+    pocketGold:   Math.floor(state.currentGold ?? 0),
+    dmgSplit:     state.enemyDamageSplit || '',
+    enemyTpCount: state.enemyTpCount || 0,
     waveTrend:    waveEl?.textContent ?? '',
     objCountdown: objEl?.textContent ?? '',
     allyDrakes:   $('ally-drakes')?.textContent ?? '0',
@@ -1353,6 +1359,7 @@ async function requestAICoaching(trigger) {
     state.matchupBrief ? `Verified Matchup Brief (web-search grounded, gathered at game start): ${state.matchupBrief}` : '',
     scoutCtx ?? '',
     `My Status: ${state.kills}/${state.deaths}/${state.assists} | Level: ${myLvl} | Unspent Gold: ${Math.floor(state.currentGold ?? 0)}g | CS: ${state.cs} (vs Target Pace: ${delta >= 0 ? '+' : ''}${delta} CS${vsOpponentStr})${mySpells ? ` | Spells: ${mySpells}` : ''} | Items: ${myItems.join(', ') || 'none'}`,
+    state.enemyDamageSplit ? `Enemy Team Damage Profile: ${state.enemyDamageSplit}${state.enemyTpCount > 0 ? ` | Enemy Teleports: ${state.enemyTpCount}` : ''}` : '',
     `Allies Status: ${allySummary || 'none'}`,
     `Enemies Status: ${enemySummary || 'none'}`,
     ...(!state.isARAM ? [
@@ -1610,7 +1617,17 @@ function checkActiveBuffTimers(gameTime) {
 
 // ── Objective recall window & pocket gold alert ───────────────────────────────
 function checkObjectiveRecallWindow(gameTime, currentGold, me) {
-  if (!me || me.isDead || currentGold < 1100) return
+  if (!me || me.isDead) return
+
+  // General pocket-gold overstay reminder outside of objectives
+  const overstayThreshold = gameTime < 840 ? 1500 : 2000
+  if (currentGold >= overstayThreshold && gameTime - state.lastOverstayAlertAt >= 120) {
+    state.lastOverstayAlertAt = gameTime
+    const goldStr = `${Math.floor(currentGold / 100) * 100}g`
+    setFocus(`💰 ${goldStr}+ unspent gold in pocket — look for a clean wave to reset`, false)
+  }
+
+  if (currentGold < 1100) return
   const upcoming = [
     { key: `d-${state.nextDragonSpawn}`, spawn: state.nextDragonSpawn, label: 'Dragon' },
     { key: `b-${state.nextBaronSpawn}`,  spawn: state.nextBaronSpawn,  label: 'Baron' },
@@ -1658,18 +1675,53 @@ function checkEnemyKeyItems(allPlayers, myTeam, gameTime) {
   }
 }
 
-// ── Fed enemy threat tracker ──────────────────────────────────────────────────
+// ── Fed enemy threat & team AD/AP damage profile tracker ─────────────────────
+const AP_ITEM_PATTERN = /rabadon|zhonya|ludens|luden|liandry|malignance|stormsurge|cryptbloom|void staff|shadowflame|lich bane|nashor|riftmaker|rod of ages|archangel|seraph|cosmic drive|horizon focus|morello|oblivion orb|blighting jewel|needlessly large rod|blasting wand|amplifying tome|sorcerer's shoes|fated ashes|haunting guise|lost chapter|fiendish codex|aether wisp|hextech alternator|dark seal|mejai|actualizer|diadem of songs/i
+const AD_ITEM_PATTERN = /infinity edge|bloodthirster|lord dominik|mortal reminder|collector|yun tal|essence reaver|phantom dancer|rapid firecannon|runaan|statikk|kraken|blade of the ruined king|trinity force|sundered sky|black cleaver|spear of shojin|sterak|maw of malmortius|hexdrinker|death's dance|eclipse|hubris|youmuu|opportunity|edge of night|profane hydra|ravenous hydra|titanic hydra|stridebreaker|hullbreaker|Experimental hexplate|terminus|serpents fang|voltaic|axiom arc|umbral glaive|guardian angel|stormrazor|endless hunger|fiendhunter|hexoptics|b\.?f\.? sword|pickaxe|long sword|serrated dirk|caulfield|hearthbound|tiamat|noonquiver|last whisper|executioner|vampiric scepter|berserker's greaves/i
+
 function checkFedThreats(allPlayers, myTeam, gameTime) {
-  if (!myTeam || gameTime < 180) return
+  if (!myTeam) return
+  let adScore = 0, apScore = 0, tpCount = 0
+
   for (const p of allPlayers) {
     if (p.team === myTeam) continue
-    const kills  = p.scores?.kills  ?? 0
-    const deaths = p.scores?.deaths ?? 0
-    const key    = `${p.championName}-fed`
-    if (kills >= 4 && kills >= deaths * 2 && !state.fedEnemyAlerted.has(key)) {
-      state.fedEnemyAlerted.add(key)
-      pushAlert(`⚠ Fed threat: Enemy ${p.championName} is ${kills}/${deaths}`, 'macro', 'warning')
+    const kills   = p.scores?.kills   ?? 0
+    const deaths  = p.scores?.deaths  ?? 0
+    const assists = p.scores?.assists ?? 0
+    const weight  = Math.max(1, kills * 2 + assists * 0.5)
+
+    // Count enemy Teleport users
+    const spells = fmtPlayerSpells(p).toLowerCase()
+    if (spells.includes('teleport')) tpCount++
+
+    // Classify enemy damage profile from purchased items
+    let pAD = 0, pAP = 0
+    for (const item of p.items ?? []) {
+      const name = item.displayName || ''
+      const price = Math.max(300, item.price ?? 400)
+      if (AP_ITEM_PATTERN.test(name)) pAP += price
+      else if (AD_ITEM_PATTERN.test(name)) pAD += price
     }
+    if (pAP > 0 || pAD > 0) {
+      apScore += (pAP / (pAP + pAD)) * weight
+      adScore += (pAD / (pAP + pAD)) * weight
+    }
+
+    if (gameTime >= 180) {
+      const key = `${p.championName}-fed`
+      if (kills >= 4 && kills >= deaths * 2 && !state.fedEnemyAlerted.has(key)) {
+        state.fedEnemyAlerted.add(key)
+        pushAlert(`⚠ Fed threat: Enemy ${p.championName} is ${kills}/${deaths}`, 'macro', 'warning')
+      }
+    }
+  }
+
+  state.enemyTpCount = tpCount
+  const totalDmg = adScore + apScore
+  if (totalDmg > 0) {
+    const adPct = Math.round((adScore / totalDmg) * 100)
+    const apPct = 100 - adPct
+    state.enemyDamageSplit = `${adPct}% AD / ${apPct}% AP`
   }
 }
 

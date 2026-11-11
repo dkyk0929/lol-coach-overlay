@@ -31,10 +31,13 @@ window.dashboard.onData((data) => {
   $('wave-text').textContent = data.waveTrend || ''
   const goldParts = []
   if (data.goldText) goldParts.push(data.goldText)
+  if (data.pocketGold >= 1000) goldParts.push(`💰${Math.floor(data.pocketGold / 100) * 100}g`)
   if (data.objCountdown) goldParts.push(data.objCountdown)
   if (data.allyDrakes != null || data.enemyDrakes != null) {
     goldParts.push(`🐉 ${data.allyDrakes ?? 0}·${data.enemyDrakes ?? 0}`)
   }
+  if (data.dmgSplit) goldParts.push(`🛡 ${data.dmgSplit}`)
+  if (data.enemyTpCount > 0) goldParts.push(`TP:${data.enemyTpCount}`)
   $('gold-text').textContent = goldParts.join('  ·  ')
   $('gold-text').style.color = data.goldColor || ''
 

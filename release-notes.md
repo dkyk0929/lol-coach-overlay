@@ -1,8 +1,11 @@
-## Rift SensAI v2.2.2 - Fix Baron / Objective Team Attribution
+## Rift SensAI v2.2.2 - Fix Baron / Objective Team Attribution & Patch 26.22 Sync
 
 ### Bug Fixes
 - **Baron, Dragon & Rift Herald Team Attribution**: Fixed an issue where allied Baron, Dragon, or Rift Herald kills were sometimes announced as taken by the enemy team. Player matching across Live Client Data events now checks all Riot ID and display fields (`summonerName`, `riotId`, `riotIdGameName`, `championName`, and `rawChampionName`), falls back to checking `Assisters` if `KillerName` does not directly resolve (e.g., pets/summons or Riot ID format differences), and guards against empty-string prefix matching in `findMe`.
 - **Duplicate Baron Alert Cleanup**: Consolidated the Baron kill notification between `checkEvents` and `handleGameEvent` so taking Baron triggers one clean alert instead of two back-to-back alerts.
+
+### Data
+- **Patch 26.22 Sync**: Updated in-app game rules context to **Patch 26.22 (November 2026)**, including Mel's Patch 26.22 midscope rework (her W *Rebuttal* now destroys incoming projectiles, shields allies, and grants movement speed rather than reflecting projectiles back at enemies).
 
 ## Rift SensAI v2.2.1 - Fix Gemini "Request contains an invalid argument" Error
 

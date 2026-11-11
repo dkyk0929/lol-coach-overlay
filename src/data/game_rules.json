@@ -1,5 +1,5 @@
 {
-  "patch": "Patch 26.20 (Season 16, October 2026)",
+  "patch": "Patch 26.22 (Season 16, November 2026)",
   "removed_items": [
     "Luden's Companion",
     "Everfrost",
@@ -70,7 +70,7 @@
     "Aurelion Sol was completely reworked: scaling late-game mage. Q is channeled breath, W is flying, E is a gravity black hole, R is a comet.",
     "Smolder: scaling AD caster who stacks his passive to gain execution burn on his abilities.",
     "Ambessa: high-mobility fighter who dashes on every ability cast.",
-    "Mel (New Champion, released Jan 23, 2025): Chem-baroness mage controlling battlefield zones with Chemtech magic.",
+    "Mel (Released Jan 23, 2025; midscope reworked in Patch 26.22): Scaling control mage. IMPORTANT Patch 26.22 W (Rebuttal) rework: W no longer reflects projectiles back at enemies — instead, it emits a refraction nova that destroys incoming projectiles, shields Mel and nearby allies, grants movement speed, and retaliates with magic missiles. Q (Radiant Volley) refunds partial cooldown on champion hits.",
     "Yunara (New Champion, released July 16, 2025): Wind/storm skirmisher with high mobility combos.",
     "Zaahen (New Champion, released Nov 19, 2025): Durability-scaling top lane bruiser with heavy crowd control.",
     "Shyvana VGU (completely reworked in March 2026 / Patch 26.05): Modernized dragon warrior with skillshot-based abilities, updated passive, and enhanced dragon form transformation.",

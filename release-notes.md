@@ -1,3 +1,18 @@
+## Rift SensAI v2.3.0 - Real-Time Engine Upgrade & New Tactical Trackers
+
+### Real-Time Responsiveness (Anti-Lag Overhaul)
+- **4x Faster Live Polling (`500ms` In-Game)**: Switched from a fixed `2,000ms` timer to adaptive polling (`500ms` while a match is running, `1,500ms` while idle in lobby) with an in-flight guard. Kills, objective takes, recalls, item completions, and countdown timers now register within half a second.
+- **Zero-Delay Live Alerts**: Live tactical alerts (`pushAlert`) now display immediately on the HUD bar instead of waiting behind the AI message lock, and the passive hint lock window was shortened from 15s to 8s.
+- **Instant Voice (TTS) Queue**: Prioritizes zero-latency local system voices over cloud/online voices, bumped speaking rate to `1.06`, and prevents multi-alert speech backlog so callouts never play 10 seconds late.
+- **Death Coaching Priority**: Urgent `death` coaching triggers bypass the 5-second periodic AI rate-limiter so a routine periodic check right before dying never swallows your death analysis.
+
+### New Tactical Features
+- **Enemy Key Item & Power Spike Alerts**: Automatically scans all 5 enemies' inventories and alerts when an enemy purchases a game-changing defensive/active item (*Zhonya's Hourglass*, *Stopwatch*, *Guardian Angel*, *QSS*, *Hexdrinker/Maw*, *Executioner's/Oblivion Orb/Bramble*, *Banshee's*, *Edge of Night*, *Mejai's*) or completes a major `2,600g+` item.
+- **Active Baron & Elder Buff Duration Timers**: Tracks the exact remaining duration of Baron buff (`3:00`) and Elder Dragon buff (`2:30`) directly on the HUD countdown (`🟣BUFF 2:15` / `⚠BARON 2:15`) with a 30-second expiry heads-up.
+- **Objective Recall Window ("Pocket Gold") Calculator**: Alerts `42–55s` before Dragon, Baron, Void Grubs, or Rift Herald spawns if you are sitting on `1,100g+` unspent gold so you have time to reset and spend before the fight.
+- **Fed Threat & Shutdown Streak Alerts**: Flags fed enemy carries (`4+` kills with `>= 2.0` K/D) and warns when you reach a `3-kill` streak so you protect your shutdown bounty.
+- **Summoner Spell Context**: Surfaces the enemy laner's combat summoner spell (*Ignite*, *Exhaust*, *Barrier*, *Cleanse*, *TP*) on the situational HUD badge and feeds all 10 players' Summoner Spells + unspent gold + active buff durations into AI coaching prompts.
+
 ## Rift SensAI v2.2.2 - Fix Baron / Objective Team Attribution & Patch 26.22 Sync
 
 ### Bug Fixes

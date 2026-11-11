@@ -40,11 +40,12 @@ function initVoice() {
   const pick = () => {
     const voices = window.speechSynthesis.getVoices()
     if (!voices.length) return
-    // Prefer neural/natural online voices first
-    const natural = voices.find(v => /Natural|Online/i.test(v.name) && v.lang.startsWith('en'))
-    const enUS    = voices.find(v => v.lang === 'en-US')
-    const enAny   = voices.find(v => v.lang.startsWith('en'))
-    bestVoice = natural || enUS || enAny || voices[0]
+    // Prefer low-latency local English voices so TTS never lags behind live events
+    const localEnUS = voices.find(v => v.localService && v.lang === 'en-US')
+    const localEn   = voices.find(v => v.localService && v.lang.startsWith('en'))
+    const enUS      = voices.find(v => v.lang === 'en-US')
+    const enAny     = voices.find(v => v.lang.startsWith('en'))
+    bestVoice = localEnUS || localEn || enUS || enAny || voices[0]
   }
   pick()
   window.speechSynthesis.onvoiceschanged = pick
@@ -62,19 +63,30 @@ function sanitizeForTTS(text) {
     .replace(/\bkda\b/gi, 'K D A')
     .replace(/\bbaron\b/gi, 'Baron')
     .replace(/\brift herald\b/gi, 'Rift Herald')
-    .replace(/[⚠✅📍🗡🔥🛡👁💀🐉🟣⚔⚡✦●—·]/gu, '')
+    .replace(/[⚠✅📍🗡🔥🛡👁💀🐉🟣⚔⚡✦●—·🛍💰⏳]/gu, '')
     .replace(/\s{2,}/g, ' ')
     .trim()
 }
 
+let currentSpeechUrgent = false
 function speak(text, urgent = false) {
   if (ttsMuted || !window.speechSynthesis) return
-  if (urgent) window.speechSynthesis.cancel()
+  if (urgent) {
+    window.speechSynthesis.cancel()
+  } else if (window.speechSynthesis.speaking) {
+    // Never pile up a multi-item backlog: if an urgent callout is speaking, drop
+    // low-priority speech; if a routine tip is speaking, interrupt it for the new event.
+    if (currentSpeechUrgent) return
+    window.speechSynthesis.cancel()
+  }
   const utt   = new SpeechSynthesisUtterance(sanitizeForTTS(text))
   utt.voice   = bestVoice
-  utt.rate    = 0.92
+  utt.rate    = 1.06
   utt.pitch   = 1.0
   utt.volume  = 0.95
+  currentSpeechUrgent = urgent
+  utt.onend   = () => { currentSpeechUrgent = false }
+  utt.onerror = () => { currentSpeechUrgent = false }
   window.speechSynthesis.speak(utt)
 }
 
@@ -306,6 +318,16 @@ function freshState() {
     roamAlerts: new Set(),
     laneOpponentWasDead: false,
     opponentPrevItems: [],
+    enemyNotedItems: {},
+    baronBuffUntil: 0,
+    baronBuffAlly: false,
+    elderBuffUntil: 0,
+    elderBuffAlly: false,
+    buffExpiryAlerted: new Set(),
+    pocketGoldAlerted: new Set(),
+    fedEnemyAlerted: new Set(),
+    myStreak: 0,
+    myStreakAlerted: false,
     jungler: {
       name: null, champion: null, level: 1,
       isDead: false, lastSeenTime: 0, lastSeenSide: null,
@@ -475,11 +497,15 @@ window.lolCoach.onGameData((data) => {
   checkEvents(events?.Events ?? [], activeName, allPlayers, me?.team)
   checkPowerSpikes(level, prevLevel, items, state.prevItemCount)
   checkEnemyPushWindow(allPlayers, me?.team, me, gameData.gameTime)
+  checkEnemyKeyItems(allPlayers, me?.team, gameData.gameTime)
+  checkFedThreats(allPlayers, me?.team, gameData.gameTime)
 
   if (!state.isARAM) {
     updateDrakeDisplay()
     checkTimeline(gameData.gameTime)
     checkRespawnAlerts(gameData.gameTime)
+    checkActiveBuffTimers(gameData.gameTime)
+    checkObjectiveRecallWindow(gameData.gameTime, state.currentGold, me)
     checkWaveHints(gameData.gameTime)
     updateJungler(gameData.gameTime, allPlayers, me?.team)
     checkEnemyRecalls(allPlayers, me?.team, gameData.gameTime, state.myPosition)
@@ -501,7 +527,7 @@ window.lolCoach.onGameData((data) => {
   }
 
   // Flush any non-urgent hint that was queued while AI message lock was active
-  if (pendingFocusHint && state.gameTime - state.aiMessageAt >= 15) {
+  if (pendingFocusHint && state.gameTime - state.aiMessageAt >= 8) {
     const p = pendingFocusHint
     pendingFocusHint = null
     setFocus(p.msg, false, p.color)
@@ -736,9 +762,10 @@ function updateEarlyFocus(gameTime, cs) {
 // Pending non-urgent hint to show once AI message lock expires
 let pendingFocusHint = null
 
-function setFocus(msg, urgent, color) {
-  // Non-urgent hints don't overwrite an AI message for 15 seconds — queue instead of drop
-  if (!urgent && state.gameTime - state.aiMessageAt < 15) {
+function setFocus(msg, urgent, color, isLiveAlert = false) {
+  // Only passive background hints wait for the AI message lock (8s) — live tactical
+  // alerts (isLiveAlert = true) always display immediately so the bar never lags.
+  if (!urgent && !isLiveAlert && state.gameTime - state.aiMessageAt < 8) {
     pendingFocusHint = { msg, color }
     return
   }
@@ -901,7 +928,12 @@ function checkEvents(events, activeName, allPlayers, myTeam) {
     // Drake stack tracking (ARAM has no Drake/Baron/JG)
     if (!state.isARAM && ev.EventName === 'DragonKill') {
       const killerIsAlly = isAllyObjectiveEvent(ev, myTeam, allPlayers)
-      if (killerIsAlly) {
+      const isElder = String(ev.DragonType || '').toLowerCase().includes('elder') ||
+        (state.allyDrakes >= 4 || state.enemyDrakes >= 4)
+      if (isElder) {
+        state.elderBuffUntil = ev.EventTime + 150
+        state.elderBuffAlly  = killerIsAlly
+      } else if (killerIsAlly) {
         state.allyDrakes++
       } else {
         state.enemyDrakes++
@@ -918,22 +950,24 @@ function checkEvents(events, activeName, allPlayers, myTeam) {
         }
       }
 
-      // Elder Dragon spawns 6 min after Soul (4th drake by either team) instead of the usual 5 min
-      const soulJustClaimed = state.allyDrakes === 4 || state.enemyDrakes === 4
-      state.nextDragonSpawn = ev.EventTime + (soulJustClaimed ? 360 : 300)
+      // Elder Dragon spawns 6 min after Soul (4th drake by either team) or after an Elder kill
+      const soulClaimed = state.allyDrakes >= 4 || state.enemyDrakes >= 4
+      state.nextDragonSpawn = ev.EventTime + (soulClaimed ? 360 : 300)
 
-      if (!stale && !killerIsAlly) {
+      if (!stale && !killerIsAlly && !isElder) {
         if (state.gameTime > 600 && state.allyDrakes < state.enemyDrakes) {
           setFocus('Match their drake — contest next Dragon', false)
         }
       }
     }
 
-    // Baron trade logic (primary Baron alert is handled by handleGameEvent below)
+    // Baron trade logic & active buff duration (180s)
     if (!state.isARAM && ev.EventName === 'BaronKill') {
       state.nextBaronSpawn = ev.EventTime + 360
+      const baronAlly = isAllyObjectiveEvent(ev, myTeam, allPlayers)
+      state.baronBuffUntil = ev.EventTime + 180
+      state.baronBuffAlly  = baronAlly
       if (!stale) {
-        const baronAlly = isAllyObjectiveEvent(ev, myTeam, allPlayers)
         if (!baronAlly && state.allyDrakes < 4) {
           setFocus("Enemy has Baron — Dragon is contestable if it's up", false)
         }
@@ -949,6 +983,17 @@ function checkEvents(events, activeName, allPlayers, myTeam) {
         if (p && myTeam && p.team !== myTeam) {
           state.enemyLastSeen[p.summonerName] = ev.EventTime
         }
+      }
+      // Track player's own kill streak for shutdown protection
+      if (isMeEvent(ev.KillerName, activeName, allPlayers)) {
+        state.myStreak++
+        if (!stale && state.myStreak === 3 && !state.myStreakAlerted) {
+          state.myStreakAlerted = true
+          pushAlert('🔥 3-kill streak active — dying gives shutdown gold', 'macro', 'warning')
+        }
+      } else if (isMeEvent(ev.VictimName, activeName, allPlayers)) {
+        state.myStreak = 0
+        state.myStreakAlerted = false
       }
     }
 
@@ -1143,7 +1188,7 @@ function checkObjectiveJgProximity(gameTime, unseen) {
 
 // ── Alert system ─────────────────────────────────────────────────────────────
 function pushAlert(msg, cat, pri) {
-  setFocus(msg, pri === 'urgent')
+  setFocus(msg, pri === 'urgent', undefined, true)
   state.alertLog.unshift({ msg, pri, time: state.gameTime })
   if (state.alertLog.length > 4) state.alertLog.pop()
   // Keep full log for post-game analysis
@@ -1243,6 +1288,12 @@ async function requestAICoaching(trigger) {
   const dragonLeft = state.nextDragonSpawn - state.gameTime
   const objParts   = []
   if (!state.isARAM) {
+    if (state.baronBuffUntil > state.gameTime) {
+      objParts.push(`Active Baron Buff: ${state.baronBuffAlly ? 'ALLY' : 'ENEMY'} (${Math.ceil(state.baronBuffUntil - state.gameTime)}s left)`)
+    }
+    if (state.elderBuffUntil > state.gameTime) {
+      objParts.push(`Active Elder Buff: ${state.elderBuffAlly ? 'ALLY' : 'ENEMY'} (${Math.ceil(state.elderBuffUntil - state.gameTime)}s left)`)
+    }
     if (state.gameTime >= 1200) {
       objParts.push(baronLeft <= 0
         ? `Baron: ALIVE NOW (spawned at ${fmtTime(state.nextBaronSpawn)})`
@@ -1278,7 +1329,8 @@ async function requestAICoaching(trigger) {
     .map(p => {
       const status = p.isDead ? `DEAD (respawns in ${Math.ceil(p.respawnTimer)}s)` : 'ALIVE'
       const kda = `${p.scores?.kills ?? 0}/${p.scores?.deaths ?? 0}/${p.scores?.assists ?? 0}`
-      return `${p.championName} (${p.position ?? 'unknown'}, ${status}, KDA: ${kda})`
+      const spells = fmtPlayerSpells(p)
+      return `${p.championName} (${p.position ?? 'unknown'}, ${status}, KDA: ${kda}${spells ? `, Spells: ${spells}` : ''})`
     })
     .join(' | ')
 
@@ -1289,16 +1341,18 @@ async function requestAICoaching(trigger) {
       const items = p.items?.map(i => i.displayName).filter(Boolean).join(', ') || 'none'
       const kda = `${p.scores?.kills ?? 0}/${p.scores?.deaths ?? 0}/${p.scores?.assists ?? 0}`
       const cs = p.scores?.creepScore ?? 0
-      return `${p.championName} (${p.position ?? 'unknown'}, ${status}, KDA: ${kda}, CS: ${cs}, Items: ${items})`
+      const spells = fmtPlayerSpells(p)
+      return `${p.championName} (${p.position ?? 'unknown'}, ${status}, KDA: ${kda}, CS: ${cs}${spells ? `, Spells: ${spells}` : ''}, Items: ${items})`
     })
     .join(' | ')
 
+  const mySpells = fmtPlayerSpells(me)
   const lines = [
     `My champion: ${state.myChampion ?? '?'}${state.isARAM ? ' (ARAM)' : ` (${state.myPosition ?? '?'})`} — ${phase} game (${fmtTime(state.gameTime)})`,
     champKit ? `Current kit (live patch): ${champKit}` : '',
     state.matchupBrief ? `Verified Matchup Brief (web-search grounded, gathered at game start): ${state.matchupBrief}` : '',
     scoutCtx ?? '',
-    `My Status: ${state.kills}/${state.deaths}/${state.assists} | Level: ${myLvl} | CS: ${state.cs} (vs Target Pace: ${delta >= 0 ? '+' : ''}${delta} CS${vsOpponentStr}) | Items: ${myItems.join(', ') || 'none'}`,
+    `My Status: ${state.kills}/${state.deaths}/${state.assists} | Level: ${myLvl} | Unspent Gold: ${Math.floor(state.currentGold ?? 0)}g | CS: ${state.cs} (vs Target Pace: ${delta >= 0 ? '+' : ''}${delta} CS${vsOpponentStr})${mySpells ? ` | Spells: ${mySpells}` : ''} | Items: ${myItems.join(', ') || 'none'}`,
     `Allies Status: ${allySummary || 'none'}`,
     `Enemies Status: ${enemySummary || 'none'}`,
     ...(!state.isARAM ? [
@@ -1500,7 +1554,7 @@ function checkRoamWindows(me, opponent, gameTime) {
 }
 
 // ── Situational context badge ─────────────────────────────────────────────────
-// Shows raw facts (HP%, JG status) — player decides what to do with them
+// Shows raw facts (HP%, JG status, enemy combat summoner spell) — player decides what to do with them
 function checkAllinWindow(level, me, allPlayers, gameTime) {
   const badge = $('allin-badge')
   if (!me || !badge) return
@@ -1520,22 +1574,139 @@ function checkAllinWindow(level, me, allPlayers, gameTime) {
     ? enemyLaner.stats.currentHealth / enemyLaner.stats.maxHealth : null
   if (eHP !== null && eHP > 0.65) { badge.classList.add('hidden'); return }
 
-  // Show context data, not a directive
+  // Show context data, including enemy combat summoner spell if present
   const hpStr = eHP !== null ? `${Math.round(eHP * 100)}% HP` : 'Low HP'
   const jgStr = j.isDead ? 'JG dead' : 'JG MIA'
-  badge.textContent = `${hpStr} · ${jgStr}`
+  const combatSpell = getEnemyCombatSpellTag(enemyLaner)
+  badge.textContent = `${hpStr} · ${jgStr}${combatSpell ? ` · ${combatSpell}` : ''}`
   badge.classList.remove('hidden')
+}
+
+// ── Active Baron / Elder buff expiry alerts ───────────────────────────────────
+function checkActiveBuffTimers(gameTime) {
+  if (state.baronBuffUntil > gameTime) {
+    const left = state.baronBuffUntil - gameTime
+    const key = `baron-exp-${state.baronBuffUntil}`
+    if (left <= 30 && left > 15 && !state.buffExpiryAlerted.has(key)) {
+      state.buffExpiryAlerted.add(key)
+      const msg = state.baronBuffAlly
+        ? '🟣 Allied Baron buff expires in 30s'
+        : '🟣 Enemy Baron buff expires in 30s'
+      pushAlert(msg, 'macro', 'normal')
+    }
+  }
+  if (state.elderBuffUntil > gameTime) {
+    const left = state.elderBuffUntil - gameTime
+    const key = `elder-exp-${state.elderBuffUntil}`
+    if (left <= 30 && left > 15 && !state.buffExpiryAlerted.has(key)) {
+      state.buffExpiryAlerted.add(key)
+      const msg = state.elderBuffAlly
+        ? '🐉 Allied Elder buff expires in 30s'
+        : '🐉 Enemy Elder buff expires in 30s'
+      pushAlert(msg, 'macro', 'normal')
+    }
+  }
+}
+
+// ── Objective recall window & pocket gold alert ───────────────────────────────
+function checkObjectiveRecallWindow(gameTime, currentGold, me) {
+  if (!me || me.isDead || currentGold < 1100) return
+  const upcoming = [
+    { key: `d-${state.nextDragonSpawn}`, spawn: state.nextDragonSpawn, label: 'Dragon' },
+    { key: `b-${state.nextBaronSpawn}`,  spawn: state.nextBaronSpawn,  label: 'Baron' },
+    ...(gameTime < 480 ? [{ key: 'grubs-480',  spawn: 480, label: 'Void Grubs' }] : []),
+    ...(gameTime < 900 ? [{ key: 'herald-900', spawn: 900, label: 'Rift Herald' }] : []),
+  ]
+  for (const obj of upcoming) {
+    const left = obj.spawn - gameTime
+    if (left >= 42 && left <= 55 && !state.pocketGoldAlerted.has(obj.key)) {
+      state.pocketGoldAlerted.add(obj.key)
+      const goldStr = `${Math.floor(currentGold / 100) * 100}g`
+      pushAlert(`💰 ${goldStr}+ unspent — ${Math.round(left)}s to ${obj.label} (reset window)`, 'macro', 'warning')
+      return
+    }
+  }
+}
+
+// ── Enemy key item / defensive active detector ────────────────────────────────
+const KEY_DEFENSIVE_ITEMS = /zhonya|stopwatch|guardian angel|quicksilver|mercurial|hexdrinker|maw of malmortius|executioner|oblivion orb|bramble vest|verdant barrier|banshee|edge of night|mejai/i
+
+function checkEnemyKeyItems(allPlayers, myTeam, gameTime) {
+  if (!myTeam || gameTime < 120) return
+  for (const p of allPlayers) {
+    if (p.team === myTeam) continue
+    const key = p.summonerName || p.championName
+    if (!key) continue
+    const noted = state.enemyNotedItems[key] ?? new Set()
+    const isFirstScan = !state.enemyNotedItems[key]
+    state.enemyNotedItems[key] = noted
+
+    for (const item of p.items ?? []) {
+      const id = item.itemID
+      const name = item.displayName || ''
+      if (!id || noted.has(id)) continue
+      noted.add(id)
+      // Don't flood alerts on the very first tick if overlay connected mid-game
+      if (isFirstScan && gameTime > 180) continue
+
+      if (KEY_DEFENSIVE_ITEMS.test(name)) {
+        pushAlert(`🛡 Enemy ${p.championName} bought ${name}`, 'power', 'warning')
+      } else if ((item.price ?? 0) >= 2600) {
+        pushAlert(`⚔ Enemy ${p.championName} completed ${name}`, 'power', 'normal')
+      }
+    }
+  }
+}
+
+// ── Fed enemy threat tracker ──────────────────────────────────────────────────
+function checkFedThreats(allPlayers, myTeam, gameTime) {
+  if (!myTeam || gameTime < 180) return
+  for (const p of allPlayers) {
+    if (p.team === myTeam) continue
+    const kills  = p.scores?.kills  ?? 0
+    const deaths = p.scores?.deaths ?? 0
+    const key    = `${p.championName}-fed`
+    if (kills >= 4 && kills >= deaths * 2 && !state.fedEnemyAlerted.has(key)) {
+      state.fedEnemyAlerted.add(key)
+      pushAlert(`⚠ Fed threat: Enemy ${p.championName} is ${kills}/${deaths}`, 'macro', 'warning')
+    }
+  }
+}
+
+function fmtPlayerSpells(p) {
+  if (!p?.summonerSpells) return ''
+  const s1 = p.summonerSpells.summonerSpellOne?.displayName
+  const s2 = p.summonerSpells.summonerSpellTwo?.displayName
+  return [s1, s2].filter(Boolean).join('/')
+}
+
+function getEnemyCombatSpellTag(p) {
+  const spells = fmtPlayerSpells(p).toLowerCase()
+  if (spells.includes('ignite'))  return '🔥Ignite'
+  if (spells.includes('exhaust')) return '⚠Exhaust'
+  if (spells.includes('barrier')) return '🛡Barrier'
+  if (spells.includes('cleanse')) return '✨Cleanse'
+  if (spells.includes('teleport') || spells.includes('unleashed teleport')) return 'TP'
+  return ''
 }
 
 // ── Objective countdown ───────────────────────────────────────────────────────
 function updateObjectiveCountdown(gameTime) {
   const el = $('obj-countdown')
   if (!el) return
-  const dragonLeft = state.nextDragonSpawn - gameTime
-  const baronLeft  = state.nextBaronSpawn  - gameTime
+  const baronBuffLeft = state.baronBuffUntil - gameTime
+  const elderBuffLeft = state.elderBuffUntil - gameTime
+  const dragonLeft    = state.nextDragonSpawn - gameTime
+  const baronLeft     = state.nextBaronSpawn  - gameTime
 
   let text = '', urgent = false
-  if (baronLeft > 0 && baronLeft <= 120) {
+  if (elderBuffLeft > 0) {
+    text = `${state.elderBuffAlly ? '🐉BUFF' : '⚠ELDER'} ${fmtCd(elderBuffLeft)}`
+    urgent = !state.elderBuffAlly || elderBuffLeft <= 25
+  } else if (baronBuffLeft > 0) {
+    text = `${state.baronBuffAlly ? '🟣BUFF' : '⚠BARON'} ${fmtCd(baronBuffLeft)}`
+    urgent = !state.baronBuffAlly || baronBuffLeft <= 25
+  } else if (baronLeft > 0 && baronLeft <= 120) {
     text = `🟣${fmtCd(baronLeft)}`; urgent = baronLeft <= 30
   } else if (dragonLeft > 0 && dragonLeft <= 90) {
     text = fmtCd(dragonLeft); urgent = dragonLeft <= 20

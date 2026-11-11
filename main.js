@@ -1582,7 +1582,14 @@ function showGameScout(gameData) {
 }
 
 function startPolling() {
+  let pollInFlight = false
+  const scheduleNext = () => {
+    clearTimeout(pollInterval)
+    pollInterval = setTimeout(poll, gameWasRunning ? 500 : 1500)
+  }
   const poll = async () => {
+    if (pollInFlight) { scheduleNext(); return }
+    pollInFlight = true
     try {
       const data = await fetchGameData()
       gameWasRunning = true
@@ -1626,10 +1633,12 @@ function startPolling() {
       scoutPlayers    = []
       scoutStats      = {}
       currentChampKit = null
+    } finally {
+      pollInFlight = false
+      scheduleNext()
     }
   }
   poll()
-  pollInterval = setInterval(poll, 2000)
 }
 
 // ── IPC ───────────────────────────────────────────────────────────────────────
@@ -1824,7 +1833,8 @@ ipcMain.handle('ai-coaching', async (event, prompt) => {
   const hasKey = aiProvider === 'gemini' ? !!geminiApiKey : !!anthropicApiKey
   if (!hasKey) return null
   const now = Date.now()
-  if (now - lastAICallTime < 5000) return null
+  const isDeathTrigger = typeof prompt === 'string' && prompt.includes('TRIGGER: player just died')
+  if (!isDeathTrigger && now - lastAICallTime < 5000) return null
   lastAICallTime = now
   try {
     const isARAM = prompt.includes('ARAM')
@@ -1978,7 +1988,7 @@ app.on('will-quit', () => {
 })
 
 app.on('window-all-closed', () => {
-  clearInterval(pollInterval)
+  clearTimeout(pollInterval)
   clearInterval(lcuPollInterval)
   // Don't quit here — the "Quit" tray menu item calls app.quit() explicitly.
   // This lets the tray keep the app alive even if all windows are closed.

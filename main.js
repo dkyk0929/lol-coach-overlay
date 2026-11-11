@@ -1534,22 +1534,30 @@ function showGameScout(gameData) {
 
   gameScoutShown = true
 
-  const myName = gameData.activePlayer?.summonerName ?? ''
+  const activePlayer = gameData.activePlayer ?? {}
+  const myNames = [activePlayer.summonerName, activePlayer.riotId, activePlayer.riotIdGameName]
+    .filter(s => typeof s === 'string' && s.trim())
+  const cleanName = s => typeof s === 'string' ? s.split('#')[0].toLowerCase().trim() : ''
+  const isMePlayer = p => {
+    if (!p || !myNames.length) return false
+    const pNames = [p.summonerName, p.riotId, p.riotIdGameName].filter(s => typeof s === 'string' && s.trim())
+    return myNames.some(mn => {
+      const cmn = cleanName(mn)
+      return cmn && pNames.some(pn => cleanName(pn) === cmn)
+    })
+  }
 
-  // Find which team the local player is on — use case-insensitive compare
-  // because the API can return Riot ID ("Name#TAG") or legacy names
-  const me     = allPlayers.find(p =>
-    p.summonerName?.toLowerCase() === myName.toLowerCase()
-  )
+  // Find which team the local player is on
+  const me     = allPlayers.find(isMePlayer)
   const myTeam = me?.team ?? (allPlayers[0]?.team ?? 'ORDER')
 
   const mapPlayer = p => ({
-    summonerName: p.summonerName,
+    summonerName: p.summonerName || p.riotId || p.riotIdGameName || '',
     champion:     p.championName
                   ?? (p.rawChampionName?.replace(/^game_character_displayname_/i, '') ?? '?'),
     championId:   nameToId[(p.championName ?? '').toLowerCase()] ?? 0,
     position:     (p.position || '').toUpperCase(),
-    isMe:         p.summonerName?.toLowerCase() === myName.toLowerCase(),
+    isMe:         isMePlayer(p),
   })
 
   const allies  = allPlayers.filter(p => p.team === myTeam).map(p => ({ ...mapPlayer(p), isAlly: true }))

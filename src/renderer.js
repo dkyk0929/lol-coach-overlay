@@ -391,7 +391,7 @@ window.lolCoach.onGameData((data) => {
     state            = freshState()
     state.running    = true
     state.aiEnabled  = aiEnabled
-    state.activeName = activePlayer?.summonerName || ''
+    state.activeName = activePlayer?.summonerName || activePlayer?.riotId || activePlayer?.riotIdGameName || ''
     waitingScreen.classList.add('hidden')
     gameScreen.classList.remove('hidden')
     appEl.classList.add('dimmed')
@@ -440,7 +440,9 @@ window.lolCoach.onGameData((data) => {
     window.lolCoach.dismissCenterNotif()
   }
 
-  const me      = findMe(allPlayers, activePlayer.summonerName)
+  const activeName = activePlayer?.summonerName || activePlayer?.riotId || activePlayer?.riotIdGameName || state.activeName
+  if (activeName && !state.activeName) state.activeName = activeName
+  const me      = findMe(allPlayers, activePlayer)
   const cs      = me?.scores?.creepScore ?? 0
   const kills   = me?.scores?.kills      ?? 0
   const deaths  = me?.scores?.deaths     ?? 0
@@ -470,7 +472,7 @@ window.lolCoach.onGameData((data) => {
 
   updateCS(gameData.gameTime, cs, me)
   updateGoldDiff(me, allPlayers)
-  checkEvents(events?.Events ?? [], activePlayer.summonerName, allPlayers, me?.team)
+  checkEvents(events?.Events ?? [], activeName, allPlayers, me?.team)
   checkPowerSpikes(level, prevLevel, items, state.prevItemCount)
   checkEnemyPushWindow(allPlayers, me?.team, me, gameData.gameTime)
 
@@ -898,7 +900,7 @@ function checkEvents(events, activeName, allPlayers, myTeam) {
 
     // Drake stack tracking (ARAM has no Drake/Baron/JG)
     if (!state.isARAM && ev.EventName === 'DragonKill') {
-      const killerIsAlly = isAllyName(ev.KillerName, myTeam, allPlayers)
+      const killerIsAlly = isAllyObjectiveEvent(ev, myTeam, allPlayers)
       if (killerIsAlly) {
         state.allyDrakes++
       } else {
@@ -927,17 +929,13 @@ function checkEvents(events, activeName, allPlayers, myTeam) {
       }
     }
 
-    // Baron trade logic
+    // Baron trade logic (primary Baron alert is handled by handleGameEvent below)
     if (!state.isARAM && ev.EventName === 'BaronKill') {
       state.nextBaronSpawn = ev.EventTime + 360
       if (!stale) {
-        const baronAlly = isAllyName(ev.KillerName, myTeam, allPlayers)
-        if (!baronAlly) {
-          if (state.allyDrakes < 4) {
-            pushAlert("Enemy has Baron — Dragon is contestable if it's up", 'macro', 'warning')
-          }
-        } else {
-          pushAlert('Your team has Baron buff', 'macro', 'normal')
+        const baronAlly = isAllyObjectiveEvent(ev, myTeam, allPlayers)
+        if (!baronAlly && state.allyDrakes < 4) {
+          setFocus("Enemy has Baron — Dragon is contestable if it's up", false)
         }
       }
     }
@@ -947,7 +945,7 @@ function checkEvents(events, activeName, allPlayers, myTeam) {
     if (ev.EventName === 'ChampionKill') {
       const allInvolved = [ev.KillerName, ...(ev.Assisters ?? []), ev.VictimName]
       for (const name of allInvolved) {
-        const p = allPlayers.find(pl => matchName(pl.summonerName, name))
+        const p = findPlayerByName(allPlayers, name)
         if (p && myTeam && p.team !== myTeam) {
           state.enemyLastSeen[p.summonerName] = ev.EventTime
         }
@@ -957,31 +955,36 @@ function checkEvents(events, activeName, allPlayers, myTeam) {
     // JG tracking — always update lastSeenTime, only alert if fresh
     if (!state.isARAM && ev.EventName === 'ChampionKill' && state.jungler.name) {
       const jn       = state.jungler.name
-      const involved = matchName(ev.KillerName, jn) ||
-        (Array.isArray(ev.Assisters) && ev.Assisters.some((a) => matchName(a, jn)))
+      const jPlayer  = findPlayerByName(allPlayers, jn)
+      const isJgName = (n) => matchName(n, jn) || (jPlayer && matchPlayer(jPlayer, n))
+      const involved = isJgName(ev.KillerName) ||
+        (Array.isArray(ev.Assisters) && ev.Assisters.some((a) => isJgName(a)))
       if (involved) {
         state.jungler.lastSeenTime = ev.EventTime
         if (!stale) {
-          const victim  = allPlayers.find((p) => matchName(p.summonerName, ev.VictimName))
+          const victim  = findPlayerByName(allPlayers, ev.VictimName)
           const pos     = victim?.position ?? ''
           const laneMap = { TOP: 'top', MID: 'mid', BOT: 'bot', UTILITY: 'bot', BOTTOM: 'bot' }
-          const lane    = laneMap[pos] ?? (matchName(ev.VictimName, activeName) ? 'lane' : null)
+          const lane    = laneMap[pos] ?? (isMeEvent(ev.VictimName, activeName, allPlayers) ? 'lane' : null)
           if (lane) {
             state.jungler.lastSeenSide = `${lane} side`
             pushAlert(`🗡 JG ganked ${lane}`, 'gank', 'warning')
           }
         }
       }
-      if (matchName(ev.VictimName, jn)) state.jungler.lastSeenTime = ev.EventTime
+      if (isJgName(ev.VictimName)) state.jungler.lastSeenTime = ev.EventTime
     }
 
-    if (!state.isARAM && ['DragonKill','BaronKill','RiftHeraldKill'].includes(ev.EventName) &&
-        state.jungler.name && matchName(ev.KillerName, state.jungler.name)) {
-      state.jungler.lastSeenTime = ev.EventTime
-      state.jungler.lastSeenSide = 'objective'
+    if (!state.isARAM && ['DragonKill','BaronKill','RiftHeraldKill'].includes(ev.EventName) && state.jungler.name) {
+      const jPlayer = findPlayerByName(allPlayers, state.jungler.name)
+      const jgKilledObj = matchName(ev.KillerName, state.jungler.name) || (jPlayer && matchPlayer(jPlayer, ev.KillerName))
+      if (jgKilledObj) {
+        state.jungler.lastSeenTime = ev.EventTime
+        state.jungler.lastSeenSide = 'objective'
+      }
     }
 
-    if (!stale && ev.EventName === 'ChampionKill' && matchName(ev.VictimName, activeName)) {
+    if (!stale && ev.EventName === 'ChampionKill' && isMeEvent(ev.VictimName, activeName, allPlayers)) {
       state.justDied = true
       state.lastKillerName = ev.KillerName
       speak('You died', true)
@@ -995,7 +998,7 @@ function checkEvents(events, activeName, allPlayers, myTeam) {
       if (state.isARAM && ['DragonKill', 'BaronKill', 'RiftHeraldKill'].includes(ev.EventName)) {
         continue
       }
-      const alert = handleGameEvent(ev, activeName, allPlayers)
+      const alert = handleGameEvent(ev, activeName, allPlayers, myTeam)
       if (alert) pushAlert(alert.msg, alert.cat, alert.pri)
     }
   }
@@ -1195,7 +1198,7 @@ async function requestGamePlan() {
   // few extra seconds of search latency here is fine. Cached in state and
   // appended to every requestAICoaching() call afterward.
   if (!state.isARAM && !state.matchupBriefFired) {
-    const me       = state.allPlayers.find(p => matchName(p.summonerName, state.activeName))
+    const me       = findPlayerByName(state.allPlayers, state.activeName)
     const opponent = state.allPlayers.find(p =>
       p.team !== me?.team && p.position === state.myPosition && p.position !== 'JUNGLE'
     )
@@ -1227,7 +1230,7 @@ async function requestAICoaching(trigger) {
   const jgStatus = j.isDead ? 'dead'
     : (state.gameTime - j.lastSeenTime > 90 ? `MISSING ${Math.floor(state.gameTime - j.lastSeenTime)}s` : `last seen ${j.lastSeenSide ?? 'unknown'}`)
 
-  const myItems    = state.allPlayers.find(p => matchName(p.summonerName, state.activeName))?.items?.map(i => i.displayName).filter(Boolean) ?? []
+  const myItems    = findPlayerByName(state.allPlayers, state.activeName)?.items?.map(i => i.displayName).filter(Boolean) ?? []
   const recentEvts = state.alertLog.slice(0, 3).map(a => a.msg).join(' | ') || 'none'
 
   const [scoutCtx, champKit] = await Promise.all([
@@ -1251,7 +1254,7 @@ async function requestAICoaching(trigger) {
   }
 
   // Find lane opponent for accurate level/CS comparison
-  const me       = state.allPlayers.find(p => matchName(p.summonerName, state.activeName))
+  const me       = findPlayerByName(state.allPlayers, state.activeName)
   const opponent = state.allPlayers.find(p =>
     p.team !== me?.team &&
     p.position === state.myPosition &&
@@ -1267,11 +1270,11 @@ async function requestAICoaching(trigger) {
 
   const recentRecallsStr = Object.entries(state.recallAlertedAt)
     .filter(([, t]) => state.gameTime - t < 30)
-    .map(([name]) => state.allPlayers.find(p => matchName(p.summonerName, name))?.championName ?? name)
+    .map(([name]) => findPlayerByName(state.allPlayers, name)?.championName ?? name)
     .join(', ')
 
   const allySummary = state.allPlayers
-    .filter(p => me && p.team === me.team && !matchName(p.summonerName, state.activeName))
+    .filter(p => me && p.team === me.team && p !== me)
     .map(p => {
       const status = p.isDead ? `DEAD (respawns in ${Math.ceil(p.respawnTimer)}s)` : 'ALIVE'
       const kda = `${p.scores?.kills ?? 0}/${p.scores?.deaths ?? 0}/${p.scores?.assists ?? 0}`
@@ -1311,7 +1314,7 @@ async function requestAICoaching(trigger) {
   if (trigger === 'death') {
     lines.push('TRIGGER: player just died — advise on respawn plan')
     if (state.lastKillerName) {
-      const killer = state.allPlayers.find(p => matchName(p.summonerName, state.lastKillerName))
+      const killer = findPlayerByName(state.allPlayers, state.lastKillerName)
       if (killer) {
         const kKDA = `${killer.scores?.kills ?? 0} Kills / ${killer.scores?.deaths ?? 0} Deaths / ${killer.scores?.assists ?? 0} Assists`
         const kItems = killer.items?.map(i => i.displayName).filter(Boolean).join(', ') || 'none'
@@ -1567,27 +1570,54 @@ function playUrgentSound()  { playTone(660, 0.13, 0.25); setTimeout(() => playTo
 document.addEventListener('mousemove', () => { if (audioCtx.state === 'suspended') audioCtx.resume() }, { once: true })
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
-function findMe(allPlayers, activeName) {
-  if (!activeName || !Array.isArray(allPlayers) || !allPlayers.length) return null
-  return allPlayers.find(p => {
-    if (!p || typeof p.summonerName !== 'string') return false
-    return (
-      p.summonerName === activeName ||
-      p.summonerName === activeName.split('#')[0] ||
-      activeName.startsWith(p.summonerName)
-    )
-  }) ?? null
+function findMe(allPlayers, activePlayerOrName) {
+  if (!Array.isArray(allPlayers) || !allPlayers.length || !activePlayerOrName) return null
+  const names = typeof activePlayerOrName === 'string'
+    ? [activePlayerOrName]
+    : [activePlayerOrName.summonerName, activePlayerOrName.riotId, activePlayerOrName.riotIdGameName].filter(Boolean)
+
+  for (const name of names) {
+    const found = findPlayerByName(allPlayers, name)
+    if (found) return found
+  }
+  // Fallback: match by prefix if non-empty
+  for (const name of names) {
+    const found = allPlayers.find(p => {
+      if (!p || typeof p.summonerName !== 'string' || !p.summonerName.trim()) return false
+      return name.toLowerCase().startsWith(p.summonerName.toLowerCase())
+    })
+    if (found) return found
+  }
+  return null
 }
 
 function matchName(a, b) {
-  if (!a || !b) return false
+  if (!a || !b || typeof a !== 'string' || typeof b !== 'string') return false
   const clean = s => s.split('#')[0].toLowerCase().trim()
-  return clean(a) === clean(b)
+  const ca = clean(a), cb = clean(b)
+  return ca.length > 0 && ca === cb
 }
 
 function isAllyName(name, myTeam, allPlayers) {
-  const p = allPlayers.find(p => matchName(p.summonerName, name))
+  if (!myTeam) return false
+  const p = findPlayerByName(allPlayers, name)
   return p?.team === myTeam
+}
+
+function isAllyObjectiveEvent(ev, myTeam, allPlayers) {
+  if (!myTeam || !ev) return false
+  const killer = findPlayerByName(allPlayers, ev.KillerName)
+  if (killer?.team) return killer.team === myTeam
+  if (Array.isArray(ev.Assisters) && ev.Assisters.length > 0) {
+    let allyCount = 0, enemyCount = 0
+    for (const a of ev.Assisters) {
+      const p = findPlayerByName(allPlayers, a)
+      if (p?.team === myTeam) allyCount++
+      else if (p?.team) enemyCount++
+    }
+    if (allyCount > 0 || enemyCount > 0) return allyCount >= enemyCount
+  }
+  return false
 }
 
 function fmtTime(s) {

@@ -1,3 +1,8 @@
+## Rift SensAI v2.4 - Fix Outdated Mel Kit in Coaching
+
+- **Stale kit feed no longer overrides patch rules**: The third-party Meraki kit feed still described Mel's pre-26.22 reflecting W (Rebuttal) and was labeled "live patch" in the AI prompt, so the coach kept quoting the old skill. It is now labeled as a possibly outdated feed, and the AI is told to trust the in-app Patch 26.22 champion rework notes when they conflict.
+- **Patch 26.23 note**: Mel received a further numbers-only buff in 26.23; her W still destroys projectiles (no reflect).
+
 ## Rift SensAI v2.3.0 - Real-Time Engine Upgrade & New Tactical Trackers
 
 ### Real-Time Responsiveness (Anti-Lag Overhaul)

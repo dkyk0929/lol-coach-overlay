@@ -1211,7 +1211,7 @@ async function requestGamePlan() {
   ])
   const prompt = [
     `My champion: ${state.myChampion ?? '?'}${state.isARAM ? ' (ARAM Mode on Howling Abyss)' : ` (${state.myPosition ?? '?'})`}`,
-    champKit ? `Current kit (live patch): ${champKit}` : '',
+    champKit ? `Kit data (third-party feed, may lag behind the latest patch; if it conflicts with CHAMPION REWORKS INFO, trust CHAMPION REWORKS INFO): ${champKit}` : '',
     `Ally team:  ${state.allyTeam.join(', ') || 'unknown'}`,
     `Enemy team: ${state.enemyTeam.join(', ') || 'unknown'}`,
     scoutCtx ? scoutCtx : '',
@@ -1355,7 +1355,7 @@ async function requestAICoaching(trigger) {
   const mySpells = fmtPlayerSpells(me)
   const lines = [
     `My champion: ${state.myChampion ?? '?'}${state.isARAM ? ' (ARAM)' : ` (${state.myPosition ?? '?'})`} — ${phase} game (${fmtTime(state.gameTime)})`,
-    champKit ? `Current kit (live patch): ${champKit}` : '',
+    champKit ? `Kit data (third-party feed, may lag behind the latest patch; if it conflicts with CHAMPION REWORKS INFO, trust CHAMPION REWORKS INFO): ${champKit}` : '',
     state.matchupBrief ? `Verified Matchup Brief (web-search grounded, gathered at game start): ${state.matchupBrief}` : '',
     scoutCtx ?? '',
     `My Status: ${state.kills}/${state.deaths}/${state.assists} | Level: ${myLvl} | Unspent Gold: ${Math.floor(state.currentGold ?? 0)}g | CS: ${state.cs} (vs Target Pace: ${delta >= 0 ? '+' : ''}${delta} CS${vsOpponentStr})${mySpells ? ` | Spells: ${mySpells}` : ''} | Items: ${myItems.join(', ') || 'none'}`,

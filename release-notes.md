@@ -1,7 +1,7 @@
 ## Rift SensAI v2.4 - Fix Outdated Mel Kit in Coaching
 
 - **Stale kit feed no longer overrides patch rules**: The third-party Meraki kit feed still described Mel's pre-26.22 reflecting W (Rebuttal) and was labeled "live patch" in the AI prompt, so the coach kept quoting the old skill. It is now labeled as a possibly outdated feed, and the AI is told to trust the in-app Patch 26.22 champion rework notes when they conflict.
-- **Patch 26.23 note**: Mel received a further numbers-only buff in 26.23; her W still destroys projectiles (no reflect).
+- **Patch 26.23 Sync**: Updated in-app game rules context to **Patch 26.23 (November 17, 2026)** from Riot's official notes. Mel's numbers-only buff (Q damage, W shield and retaliation) is recorded, and her W still destroys projectiles (no reflect). Added a new recent-balance-changes list for the 26.23 Summoner's Rift buffs and nerfs (Annie, Azir, Bard, Ezreal, Galio, Gnar, K'Sante, Vi; LeBlanc, Master Yi, Syndra), the Voltaic Cyclosword nerf, and the new League Classic champion versions (Talon, Udyr, Urgot, Xerath).
 
 ## Rift SensAI v2.3.0 - Real-Time Engine Upgrade & New Tactical Trackers
 

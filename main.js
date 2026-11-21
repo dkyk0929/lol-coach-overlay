@@ -489,6 +489,9 @@ function getGameRulesText() {
       if (data.champion_reworks && data.champion_reworks.length > 0) {
         rules.push(`CHAMPION REWORKS INFO: ${data.champion_reworks.join(' | ')}`)
       }
+      if (data.recent_balance_changes && data.recent_balance_changes.length > 0) {
+        rules.push(`RECENT BALANCE CHANGES: ${data.recent_balance_changes.join(' | ')}`)
+      }
       if (data.general_notes && data.general_notes.length > 0) {
         rules.push(`ADDITIONAL RULES & CONSTRAINTS: ${data.general_notes.join(' ')}`)
       }
